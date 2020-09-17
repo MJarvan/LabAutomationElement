@@ -55,11 +55,6 @@ namespace LabAutomationElement
         /// </summary>
         string ReportNo = string.Empty;
 
-        //调整一个表格的样品总列数
-        //int importTakeNum = 8;
-        int importTakeNum = 4;
-        //调整一个横表格的总列数
-        int verticalSheetColumnCount = 10;
         //调整一个竖表格的总列数
         int horizontalSheetColumnCount = 9;
         /// <summary>
@@ -266,7 +261,6 @@ namespace LabAutomationElement
             IWorkbook workbook = null;
             TabControl tabControl = new TabControl();
             tabControl.Name = "tabControl";
-            List<KeyValuePair<string,int>> compounds = new List<KeyValuePair<string,int>>();
             if (File.Exists(path))
             {
                 using (FileStream fs = File.OpenRead(path))
@@ -285,7 +279,7 @@ namespace LabAutomationElement
                     {
                         ISheet sheet = workbook.GetSheetAt(0);//读取第一个sheet，当然也可以循环读取每个sheet
                         IRow firstrow = sheet.GetRow(sheet.FirstRowNum);
-                        int Num = 1;
+                        int Num = 0;
                         //第一行是啊化合物名称
                         int columnCount = firstrow.LastCellNum;//多少列
                         for (int j = 0; j < columnCount; j++)
@@ -293,7 +287,11 @@ namespace LabAutomationElement
                             ICell firstCell = firstrow.GetCell(j);
                             if (firstCell != null)
                             {
-                                if (firstCell.StringCellValue != string.Empty && firstCell.StringCellValue != "" && firstCell.StringCellValue != "分析物名称")
+                                if (firstCell.ColumnIndex == 0)
+                                {
+                                    ReportNo = firstCell.StringCellValue;
+                                }
+                                else if (firstCell.StringCellValue != string.Empty && firstCell.StringCellValue != "" && firstCell.StringCellValue != "分析物名称")
                                 {
                                     string compoundName = firstCell.StringCellValue.Trim();
                                     DataTable dataTable = new DataTable();
@@ -303,14 +301,8 @@ namespace LabAutomationElement
                                 }
                             }
                         }
-                        
-                        foreach (KeyValuePair<string,int> keyValuePair in compounds)
-                        {
-                            
-                        }
                     }
 
-                    //AddParallelSamplesToList();
 
                     maingrid.Children.Add(tabControl);
                     ReportNoLabel.Content = ReportNo;
@@ -328,7 +320,8 @@ namespace LabAutomationElement
             newsampleNameList.Clear();
             ReportNo = string.Empty;
             ReportNoLabel.Content = ReportNo;
-            compoundsDataSet.Tables.Clear();
+            FiresDataSet.Tables.Clear();
+            GraphiteDataSet.Tables.Clear();
             maingrid.Children.Clear();
             finalsampleNameList.Clear();
         }
@@ -410,6 +403,15 @@ namespace LabAutomationElement
 
             //删掉火焰石墨不要的列
             dataTable.Columns.RemoveAt(skipNum);
+            //删掉每个元素浓度为空的行
+            for (int i = dataTable.Rows.Count -1; i >=0; i--)
+            {
+                string value = dataTable.Rows[i][dataTable.Columns.Count - 1].ToString();
+                if (value == "/")
+                {
+                    dataTable.Rows.RemoveAt(i);
+                }
+            }
             //把样品名称和质量调到最开始
             /*.Columns[dataTable.Columns.Count - 1].SetOrdinal(0);
             dataTable.Columns[dataTable.Columns.Count - 1].SetOrdinal(0);
@@ -420,6 +422,7 @@ namespace LabAutomationElement
                     sampleNameList.Add(dataTable.Rows[l][0].ToString());
                 }
             }*/
+            AddParallelSamplesToList(dataTable);
 
             TabItem tabItem = new TabItem();
             //tabItem.Header = name[1] + " | " + name[2];
@@ -461,7 +464,6 @@ namespace LabAutomationElement
             textBox.VerticalAlignment = System.Windows.VerticalAlignment.Center;
             textBox.KeyUp += Tab_TextBox_KeyUp;
             if (preCompoundsNameList.Count > 0)
-
             {
                 foreach (KeyValuePair<string,string> keyValuePair in preCompoundsNameList)
                 {
@@ -518,59 +520,24 @@ namespace LabAutomationElement
         }
 
         /// <summary>
-        /// 
         /// 添加平行样
         /// </summary>
-        private void AddParallelSamplesToList()
+        private void AddParallelSamplesToList(DataTable dataTable)
         {
-            //先加完所有的平行样再分组比较好
-            List<string> psNameList = sampleNameList.ToList();
-            List<int> numList = new List<int>();
-            string Ebanlance = "Dup";
-            string Cbanlance = "平均";
-            List<string> addNameList = psNameList.Where(x => x.Contains(Ebanlance)).ToList();
-            for (int i = 0; i < addNameList.Count; i++)
+            //由于只有竖表不用分组
+            for (int i = 0; i < dataTable.Rows.Count - 1; i++)
             {
-                int num = psNameList.IndexOf(addNameList[i]) + 1;
-                numList.Add(num);
-            }
-
-            newsampleNameList = psNameList.ToList();
-            newsampleNameList.Add("以下空白");
-
-            int Count = psNameList.Count % importTakeNum > 0 ? psNameList.Count / importTakeNum + 1 : psNameList.Count / importTakeNum;
-
-            for (int i = 0; i < Count; i++)
-            {
-                List<int> finalnumList = new List<int>();
-                if (i == Count - 1)
+                string value = dataTable.Rows[i]["试样识别码"].ToString();
+                if (value.Contains("Dup"))
                 {
-                    List<string> cellList = psNameList.ToList();
-                    if (cellList.Exists(x => x.Contains(Cbanlance)))
-                    {
-                        List<string> newcellList = cellList.Where(x => x.Contains(Cbanlance)).ToList();
-                        foreach (string strNum in newcellList)
-                        {
-                            finalnumList.Add(cellList.IndexOf(strNum));
-                        }
-                    }
-                    KeyValuePair<List<string>,List<int>> keyValuePair = new KeyValuePair<List<string>,List<int>>(cellList,finalnumList);
-                    finalsampleNameList.Add(keyValuePair);
-                }
-                else
-                {
-                    List<string> cellList = psNameList.Take(importTakeNum).ToList();
-                    psNameList.RemoveRange(0,importTakeNum);
-                    if (cellList.Exists(x => x.Contains(Cbanlance)))
-                    {
-                        List<string> newcellList = cellList.Where(x => x.Contains(Cbanlance)).ToList();
-                        foreach (string strNum in newcellList)
-                        {
-                            finalnumList.Add(cellList.IndexOf(strNum));
-                        }
-                    }
-                    KeyValuePair<List<string>,List<int>> keyValuePair = new KeyValuePair<List<string>,List<int>>(cellList,finalnumList);
-                    finalsampleNameList.Add(keyValuePair);
+                    DataRow dataRow = dataTable.NewRow();
+                    dataRow[0] = "/";
+                    dataRow[1] = "/";
+                    dataRow[2] = "/";
+                    dataRow[3] = "/";
+                    dataRow[4] = value.Replace("Dup","平均");
+                    dataRow[5] = "/";
+                    dataTable.Rows.InsertAt(dataRow,i + 1);
                 }
             }
         }
@@ -583,20 +550,8 @@ namespace LabAutomationElement
         /// <param name="e"></param>
         private void importExcel_Click(object sender,RoutedEventArgs e)
         {
-            if (finalsampleNameList.Count == 0 || newsampleNameList.Count == 0)
-            {
-                return;
-            }
-            //判断化合物是否大于4，从而分割成横表或者竖表
-            if (compoundsNameList.Count > 2)
-            {
-                CreateVerticalExcel();
-            }
-            else
-            {
-                CreateHorizontalExcel();
-            }
-
+            //只有竖表没有横表
+            CreateHorizontalExcel();
         }
 
         /// <summary>
@@ -630,11 +585,11 @@ namespace LabAutomationElement
                 compoundsNameList.Add(keyValuePair);
             }
 
-            if (compoundsNameList.Count > 2)
-            {
-                KeyValuePair<string,string> keyValuePair = new KeyValuePair<string,string>("以下空白",string.Empty);
-                compoundsNameList.Add(keyValuePair);
-            }
+            //if (compoundsNameList.Count > 2)
+            //{
+            //    KeyValuePair<string,string> keyValuePair = new KeyValuePair<string,string>("以下空白",string.Empty);
+            //    compoundsNameList.Add(keyValuePair);
+            //}
         }
 
         /// <summary>
@@ -905,47 +860,6 @@ namespace LabAutomationElement
         }
 
 
-
-        /// <summary>
-        /// 创建横表Excel
-        /// </summary>
-        private void CreateVerticalExcel()
-        {
-            var workbook = new HSSFWorkbook();
-            var sheet = workbook.CreateSheet("色谱分析结果汇总1-土");
-            sheet.ForceFormulaRecalculation = true;
-            //设置顶部大标题样式
-            HSSFCellStyle cellStyle = CreateStyle(workbook);
-            HSSFCellStyle cellRedStyle = CreateRedStyle(workbook);
-            HSSFCellStyle cellGreyStyle = CreateGreyStyle(workbook);
-
-            List<HSSFCellStyle> listCellStyle = new List<HSSFCellStyle>();
-            listCellStyle.Add(cellStyle);
-            listCellStyle.Add(cellRedStyle);
-            listCellStyle.Add(cellGreyStyle);
-            int Count = 0;
-            foreach (KeyValuePair<List<string>,List<int>> keyValuePair in finalsampleNameList)
-            {
-                CreateVerticalSheet(sheet,listCellStyle,keyValuePair.Key,keyValuePair.Value,Count);
-                Count++;
-            }
-
-            // 自动调整列距
-            for (int i = 0; i < verticalSheetColumnCount * Count; i++)
-            {
-                if (i % verticalSheetColumnCount == 0)
-                {
-                    sheet.SetColumnWidth(i,40 * 256);
-                }
-                else
-                {
-                    sheet.AutoSizeColumn(i);
-                }
-            }
-
-            ExportToExcel(workbook);
-        }
-
         /// <summary>
         /// 导出到Excel
         /// </summary>
@@ -1126,321 +1040,7 @@ namespace LabAutomationElement
         }
 
 
-        /// <summary>
-        /// 创建横表
-        /// </summary>
-        /// <param name="sheet"></param>
-        /// <param name="cellStyle"></param>
-        /// <param name="cellList"></param>
-        /// <param name="advantageNum"></param>
-        /// <param name="Count"></param>
-        private void CreateVerticalSheet(ISheet sheet,List<HSSFCellStyle> listCellStyle,List<string> cellList,List<int> advantageNum,int Count)
-        {
-            HSSFCellStyle cellStyle = listCellStyle[0];
-            HSSFCellStyle cellRedStyle = listCellStyle[1];
-            HSSFCellStyle cellGreyStyle = listCellStyle[2];
-            cellStyle.BorderBottom = BorderStyle.Thin;
-            cellStyle.BorderRight = BorderStyle.Thin;
-            cellStyle.BorderTop = BorderStyle.Thin;
-            cellStyle.BorderLeft = BorderStyle.Thin;
-            //前五行
-            for (int i = 0; i < 5; i++)
-            {
-                //第一个单元格 公式
-                HSSFRow row = (Count == 0) ? (HSSFRow)sheet.CreateRow(i) : (HSSFRow)sheet.GetRow(i); //创建行或者获取行
-                row.HeightInPoints = 20;
-
-                if (i == 4)
-                {
-                    row.HeightInPoints = 50;
-                }
-                var formulacell = (Count == 0) ? row.CreateCell(i) : row.CreateCell(verticalSheetColumnCount * Count);
-                formulacell.CellStyle = cellStyle;
-                if (i == 0)
-                {
-                    CellRangeAddress region = new CellRangeAddress(0,4,verticalSheetColumnCount * Count,verticalSheetColumnCount * Count);
-                    sheet.AddMergedRegion(region);
-                    //要和公式那一块绑定在一起
-                    //下标只能用Excel自带的富文本编写，不能用stringbuilder
-                    string wdm = "计算公式：" + FormulaComboBox.Text + "\n"
-                        + "C—样品中目标物的质量浓度\n"
-                        + "Ci——目标物上机测定浓度\n"
-                        + "V1——定容体积\n"
-                        + "f——稀释倍数\n"
-                        + "m——取样量\n"
-                        + "Wdm—样品干物质含量";
-                    HSSFRichTextString rtsWdm = new HSSFRichTextString(wdm);
-                    IWorkbook workbook = sheet.Workbook;
-                    var cellStyleFont = (HSSFFont)workbook.CreateFont(); //创建字体
-                    cellStyleFont.TypeOffset = FontSuperScript.Sub;//字体上标下标
-                    rtsWdm.ApplyFont(wdm.Length - 10,wdm.Length - 8,cellStyleFont);
-                    rtsWdm.ApplyFont(19,21,cellStyleFont);
-                    formulacell.SetCellValue(rtsWdm);
-                }
-                //从第二列开始
-                for (int j = verticalSheetColumnCount * Count + 1; j < verticalSheetColumnCount * Count + verticalSheetColumnCount; j++)
-                {
-                    var cell = row.CreateCell(j);
-                    cell.CellStyle = cellStyle;
-                    //按照已有的弄
-                    //用于最右边的那一版导出，因为有以下空白的特殊情况
-                    if (j - verticalSheetColumnCount * Count - 2 >= cellList.Count && j - verticalSheetColumnCount * Count - 2 < importTakeNum)
-                    {
-                        string setvalue = (i == 0) ? "以下空白" : "";
-                        cell.SetCellValue(setvalue);
-                    }
-                    else if (j - verticalSheetColumnCount * Count - 2 >= cellList.Count + importTakeNum && j - verticalSheetColumnCount * Count - 2 < importTakeNum * 2)
-                    {
-                        string setvalue = (i == 0) ? "以下空白" : "";
-                        cell.SetCellValue(setvalue);
-                    }
-                    //常数
-                    else if ((j - verticalSheetColumnCount * Count) == 1)
-                    {
-                       // cell.SetCellValue(basicDataTable.Columns[i].ColumnName);
-                    }
-                    //是Ci浓度,除了样品编号都为都为-
-                    else if (j - verticalSheetColumnCount * Count - 2 < cellList.Count)
-                    {
-                        if (i == 4)
-                        {
-                            string setvalue = cellList[j - verticalSheetColumnCount * Count - 2];
-                            var newcellStyle = CreateColorStyle((HSSFWorkbook)sheet.Workbook,setvalue);
-                            cell.CellStyle = newcellStyle;
-                            cell.SetCellValue(setvalue);
-                        }
-                        else
-                        {
-                            cell.SetCellValue("-");
-                        }
-                    }
-                    else
-                    {
-                        if (i == 4)
-                        {
-                            string setvalue = cellList[j - verticalSheetColumnCount * Count - importTakeNum - 2];
-                            var newcellStyle = CreateColorStyle((HSSFWorkbook)sheet.Workbook,setvalue);
-                            cell.CellStyle = newcellStyle;
-                            cell.SetCellValue(setvalue);
-                        }
-                        else
-                        {
-                            //string setvalue = basicDataTable.Rows[j - (Count + 1) * (importTakeNum + 2)][i].ToString();
-                            //if ((i == 0 || i == 3) && !setvalue.Contains("-"))
-                            //{
-                            //    setvalue = CalculateAccuracyCTwo(setvalue);
-                            //}
-                            //else if (i == 2 && !setvalue.Contains("-") && setvalue != "100")
-                            //{
-                            //    setvalue = CalculateAccuracySu(double.Parse(setvalue));
-                            //}
-                            //cell.SetCellValue(setvalue);
-                        }
-                    }
-                }
-            }
-            //第四行表头
-            HSSFRow HearderRow = (Count == 0) ? (HSSFRow)sheet.CreateRow(5) : (HSSFRow)sheet.GetRow(5); //创建行或者获取行
-            HearderRow.HeightInPoints = 20;
-            for (int k = verticalSheetColumnCount * Count; k < verticalSheetColumnCount * (Count + 1); k++)
-            {
-                var cell = HearderRow.CreateCell(k);
-                cell.CellStyle = cellStyle;
-                //合并Ci
-                if (!sheet.MergedRegions.Exists(x => x.FirstRow == 5 && x.LastRow == 5 && x.FirstColumn == 2 + verticalSheetColumnCount * Count && x.LastColumn == 5 + verticalSheetColumnCount * Count))
-                {
-                    CellRangeAddress newregion = new CellRangeAddress(5,5,2 + verticalSheetColumnCount * Count,5 + verticalSheetColumnCount * Count);
-                    sheet.AddMergedRegion(newregion);
-                }
-                //合并C
-                if (!sheet.MergedRegions.Exists(x => x.FirstRow == 5 && x.LastRow == 5 && x.FirstColumn == 6 + verticalSheetColumnCount * Count && x.LastColumn == 9 + verticalSheetColumnCount * Count))
-                {
-                    CellRangeAddress newregion = new CellRangeAddress(5,5,6 + verticalSheetColumnCount * Count,9 + verticalSheetColumnCount * Count);
-                    sheet.AddMergedRegion(newregion);
-                }
-                if (k == 0 + verticalSheetColumnCount * Count)
-                {
-                    cell.SetCellValue("目标化合物");//合并单元格后，只需对第一个位置赋值即可（TODO:顶部标题）
-                }
-                else if (k == 1 + verticalSheetColumnCount * Count)
-                {
-                    cell.SetCellValue(testJCRadioButton.Content + "(" + ZDJCCompanyComboBox.Text + ")");
-                }
-                else if (k == 2 + verticalSheetColumnCount * Count)
-                {
-                    cell.SetCellValue("目标物上机测定浓度 Ci (" + FireComboBox.Text + ")");
-                }
-                else if (k == 6 + verticalSheetColumnCount * Count)
-                {
-                    cell.SetCellValue("目标化合物浓度 C (" + ZDJCCompanyComboBox.Text + ")");
-                }
-            }
-
-            for (int k = 0; k < compoundsNameList.Count; k++)
-            {
-                HSSFRow compoundsRow = (Count == 0) ? (HSSFRow)sheet.CreateRow(5 + k + 1) : (HSSFRow)sheet.GetRow(5 + k + 1); //创建行或者获取行
-                compoundsRow.HeightInPoints = 20;
-                string compoundName = compoundsNameList[k].Key;
-                string modelC = compoundsNameList[k].Value;
-
-
-                for (int l = verticalSheetColumnCount * Count; l < verticalSheetColumnCount * Count + verticalSheetColumnCount; l++)
-                {
-                    var compoundsCell = compoundsRow.CreateCell(l);
-                    compoundsCell.CellStyle = cellStyle;
-                    {
-                        //第一列是化合物名称
-                        if (l - verticalSheetColumnCount * Count == 0)
-                        {
-                            compoundsCell.SetCellValue(compoundName);
-                        }
-                        //第二列是判断标准
-                        else if (l - verticalSheetColumnCount * Count == 1)
-                        {
-                            compoundsCell.SetCellValue(modelC);
-                        }
-                        //前四列是浓度度数
-                        else if (l - verticalSheetColumnCount * Count - 2 < cellList.Count)
-                        {
-                            if (modelC == string.Empty)
-                            {
-                                compoundsCell.SetCellValue(string.Empty);
-                            }
-                            else
-                            {
-                                string sampleName = cellList[l - verticalSheetColumnCount * Count - 2];
-                                if (sampleName.Contains("平均"))
-                                {
-                                    compoundsCell.SetCellValue("-");
-                                }
-                                else
-                                {
-                                    foreach (DataTable dataTable in compoundsDataSet.Tables)
-                                    {
-                                        if (dataTable.TableName == compoundName)
-                                        {
-                                            //找到该化合物对应的样品编号和浓度数据
-                                            foreach (DataRow dataRow in dataTable.Rows)
-                                            {
-                                                string dtsampleName = dataRow["样品名称"].ToString();
-                                                if (dtsampleName == sampleName)
-                                                {
-                                                    string potency = dataRow["含量"].ToString();
-                                                    if (potency.Contains("-") || potency == "0")
-                                                    {
-                                                        compoundsCell.SetCellValue(CalculateAccuracyCTwo("0"));
-                                                    }
-                                                    else
-                                                    {
-                                                        compoundsCell.SetCellValue(CalculateAccuracyCTwo(potency));
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        else if (cellList.Count == importTakeNum)
-                        {
-                            //后四列是计算判断
-                            if (l - verticalSheetColumnCount * Count - 2 >= cellList.Count && l - verticalSheetColumnCount * Count - 2 < cellList.Count * 2)
-                            {
-                                if (modelC == string.Empty)
-                                {
-                                    compoundsCell.SetCellValue(string.Empty);
-                                }
-                                else
-                                {
-                                    string sampleName = cellList[l - verticalSheetColumnCount * Count - 2 - cellList.Count];
-                                    if (sampleName.Contains("CCV"))
-                                    {
-                                        compoundsCell.SetCellValue("-");
-                                    }
-                                    else if (sampleName.Contains("平均"))
-                                    {
-                                        //获取平均样的位置
-                                        int num = newsampleNameList.IndexOf(sampleName);
-                                        //平均样的前两个加起来除以二就是平均值
-                                        string setvalue = CompareCompoundWithFormula(compoundName,modelC,newsampleNameList[num - 1],newsampleNameList[num - 2]);
-                                        if (setvalue == "ND")
-                                        {
-                                            compoundsCell.CellStyle = cellGreyStyle;
-                                        }
-                                        else
-                                        {
-                                            compoundsCell.CellStyle = cellRedStyle;
-                                        }
-                                        compoundsCell.SetCellValue(setvalue);
-                                    }
-                                    else
-                                    {
-                                        string setvalue = CompareCompoundWithFormula(compoundName,modelC,sampleName);
-                                        if (setvalue == "ND")
-                                        {
-                                            compoundsCell.CellStyle = cellGreyStyle;
-                                        }
-                                        else
-                                        {
-                                            compoundsCell.CellStyle = cellRedStyle;
-                                        }
-                                        compoundsCell.SetCellValue(setvalue);
-                                    }
-                                }
-                            }
-                        }
-                        else if (cellList.Count < importTakeNum)
-                        {
-                            //最后一版特殊判断
-                            if (l - verticalSheetColumnCount * Count - 2 >= importTakeNum && l - verticalSheetColumnCount * Count - 2 < cellList.Count + importTakeNum)
-                            {
-                                if (modelC == string.Empty)
-                                {
-                                    compoundsCell.SetCellValue(string.Empty);
-                                }
-                                else
-                                {
-                                    string sampleName = cellList[l - verticalSheetColumnCount * Count - 2 - importTakeNum];
-                                    if (sampleName.Contains("CCV"))
-                                    {
-                                        compoundsCell.SetCellValue("-");
-                                    }
-                                    else if (sampleName.Contains("平均"))
-                                    {
-                                        //获取平均样的位置
-                                        int num = newsampleNameList.IndexOf(sampleName);
-                                        //平均样的前两个加起来除以二就是平均值
-                                        string setvalue = CompareCompoundWithFormula(compoundName,modelC,newsampleNameList[num - 1],newsampleNameList[num - 2]);
-                                        if (setvalue == "ND")
-                                        {
-                                            compoundsCell.CellStyle = cellGreyStyle;
-                                        }
-                                        else
-                                        {
-                                            compoundsCell.CellStyle = cellRedStyle;
-                                        }
-                                        compoundsCell.SetCellValue(setvalue);
-                                    }
-                                    else
-                                    {
-                                        string setvalue = CompareCompoundWithFormula(compoundName,modelC,sampleName);
-                                        if (setvalue == "ND")
-                                        {
-                                            compoundsCell.CellStyle = cellGreyStyle;
-                                        }
-                                        else
-                                        {
-                                            compoundsCell.CellStyle = cellRedStyle;
-                                        }
-                                        compoundsCell.SetCellValue(setvalue);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+       
 
         private string CalculateAccuracySu(double c)
         {
@@ -1908,10 +1508,6 @@ namespace LabAutomationElement
         /// <param name="e"></param>
         private void importAll_Click(object sender,RoutedEventArgs e)
         {
-            if (finalsampleNameList.Count == 0 || newsampleNameList.Count == 0)
-            {
-                return;
-            }
             System.Windows.Forms.SaveFileDialog sfd = new System.Windows.Forms.SaveFileDialog();
             sfd.Filter = "文本文件(*.txt)|*.txt|所有文件|*.*";//设置文件类型
                                                       //sfd.FileName = "保存";//设置默认文件名
@@ -1955,10 +1551,6 @@ namespace LabAutomationElement
         /// <param name="e"></param>
         private void importExcel_MouseMove(object sender,MouseEventArgs e)
         {
-            if (finalsampleNameList.Count == 0 || newsampleNameList.Count == 0)
-            {
-                return;
-            }
             AddDetectionLimit();
         }
 
