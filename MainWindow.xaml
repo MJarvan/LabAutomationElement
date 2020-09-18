@@ -92,8 +92,8 @@
                             <ComboBoxItem Tag="0.001"  Content="μg/L" IsSelected="True"></ComboBoxItem>
                             <ComboBoxItem Tag="0.000001" Content="ng/L"></ComboBoxItem>
                         </ComboBox>
-                        <Label Name="AccuracyLabel" Content="计算精度：" Margin="10,0,10,0" VerticalContentAlignment="Center"></Label>
-                        <ComboBox VerticalAlignment="Center" MinWidth="50" Name="AccuracyComboBox">
+                        <Label Name="AccuracyLabel" Content="计算精度：" Margin="10,0,10,0" VerticalContentAlignment="Center" Visibility="Collapsed"></Label>
+                        <ComboBox VerticalAlignment="Center" MinWidth="50" Name="AccuracyComboBox" Visibility="Collapsed">
                             <ComboBoxItem Content="默认" IsSelected="True"></ComboBoxItem>
                             <ComboBoxItem Content="0"></ComboBoxItem>
                             <ComboBoxItem Content="1"></ComboBoxItem>
@@ -107,8 +107,8 @@
                             <ComboBoxItem Content="9"></ComboBoxItem>
                         </ComboBox>
 
-                        <Label Name="FormulaLabel" Content="公式：" Margin="10,0,10,0" VerticalContentAlignment="Center"></Label>
-                        <ComboBox VerticalAlignment="Center" MinWidth="50" Name="FormulaComboBox">
+                        <Label Name="FormulaLabel" Content="公式：" Margin="10,0,10,0" VerticalContentAlignment="Center" Visibility="Collapsed"></Label>
+                        <ComboBox VerticalAlignment="Center" MinWidth="50" Name="FormulaComboBox" Visibility="Collapsed">
                             <ComboBoxItem Content="C=Ci×K×V/W×Wdm" IsSelected="True"></ComboBoxItem>
                             <ComboBoxItem Content="C=Ci×K×V/W×(1-f)" ></ComboBoxItem>
                             <!--<ComboBoxItem Content="X = Ci * f * (V1 / V) * (1/1000)"></ComboBoxItem>-->
