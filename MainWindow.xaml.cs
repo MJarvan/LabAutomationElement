@@ -792,31 +792,61 @@ namespace LabAutomationElement
                     {
                         var cell = row.CreateCell(j);
                         cell.CellStyle = bordercellStyle;
-                        if (j == 0)
+                        switch (j)
                         {
-                            cell.SetCellValue(i + 1);
-                        }
-                        else if (j == 8)
-                        {
-                            //计算精度函数
-                            string value = string.Empty;
-                            cell.SetCellValue(value);
-                        }
-                        else if (j == 9)
-                        {
-                            //计算精度函数
-                            string value = string.Empty;
-                            cell.SetCellValue(value);
-                        }
-                        else if (j == 1)
-                        {
-                            cell.SetCellValue(datatable.Rows[i][j - 1].ToString());
-                            CellRangeAddress secondregion = new CellRangeAddress(rowNum,rowNum,j,j + 1);
-                            sheet.AddMergedRegion(secondregion);
-                        }
-                        else
-                        {
-                            cell.SetCellValue(datatable.Rows[i][j - 2].ToString());
+                            case 0:
+                                {
+                                    cell.SetCellValue(i + 1);
+                                    break;
+                                }
+                            case 1:
+                                {
+                                    cell.SetCellValue(datatable.Rows[i][j - 1].ToString());
+                                    CellRangeAddress secondregion = new CellRangeAddress(rowNum,rowNum,j,j + 1);
+                                    sheet.AddMergedRegion(secondregion);
+                                    break;
+                                }
+                            case 3:
+                                {
+                                    //计算精度函数
+                                    string value = datatable.Rows[i][j - 2].ToString();
+                                    if (!value.Contains("/"))
+                                    {
+                                        value = CalculateAccuracyCFour(value);
+                                    }
+                                    cell.SetCellValue(value);
+                                    break;
+                                }
+                            case 4:
+                                {
+                                    //计算精度函数
+                                    string value = datatable.Rows[i][j - 2].ToString();
+                                    if (!value.Contains("/") && !value.Contains("%"))
+                                    {
+                                        value = CalculateAccuracyCPercent(value);
+                                    }
+                                    cell.SetCellValue(value);
+                                    break;
+                                }
+                            case 8:
+                                {
+                                    //计算精度函数
+                                    string value = string.Empty;
+                                    cell.SetCellValue(value);
+                                    break;
+                                }
+                            case 9:
+                                {
+                                    //备注
+                                    string value = string.Empty;
+                                    cell.SetCellValue(value);
+                                    break;
+                                }
+                            default:
+                                {
+                                    cell.SetCellValue(datatable.Rows[i][j - 2].ToString());
+                                    break;
+                                }
                         }
                     }
                 }
@@ -1224,26 +1254,37 @@ namespace LabAutomationElement
         }
 
         /// <summary>
-        /// 补齐两位数的零
+        /// 补齐四位数的零
         /// </summary>
         /// <param name="compoundName"></param>
         /// <param name="v"></param>
         /// <returns></returns>
-        private string CalculateAccuracyCTwo(string value)
+        private string CalculateAccuracyCPercent(string value)
         {
-            if (value == "0.1")
-            {
-            }
+            double num = double.Parse(value);
+            num *= 100;
+            value = num.ToString() + "%";
+            return value;
+        }
+
+        /// <summary>
+        /// 补齐四位数的零
+        /// </summary>
+        /// <param name="compoundName"></param>
+        /// <param name="v"></param>
+        /// <returns></returns>
+        private string CalculateAccuracyCFour(string value)
+        {
             string[] beforeValue = value.Split(".");
             int num;
             //没有小数点的
             if (beforeValue.Length < 2)
             {
-                num = 2;
+                num = 4;
             }
             else
             {
-                num = 2 - beforeValue[beforeValue.Length - 1].Length;
+                num = 4 - beforeValue[beforeValue.Length - 1].Length;
             }
             //计算后补零
             if (num != 0)
