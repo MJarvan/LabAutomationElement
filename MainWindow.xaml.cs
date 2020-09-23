@@ -398,6 +398,7 @@ namespace LabAutomationElement
             }
             //把样品名称调到最开始
             dataTable.Columns[dataTable.Columns.Count - 2].SetOrdinal(0);
+            dataTable.Columns[0].ColumnName = "样品编号";
             /*dataTable.Columns[dataTable.Columns.Count - 1].SetOrdinal(0);
             if (sampleNameList.Count != dataTable.Rows.Count)
             {
@@ -511,7 +512,7 @@ namespace LabAutomationElement
             //由于只有竖表不用分组
             for (int i = 0; i < dataTable.Rows.Count - 1; i++)
             {
-                string value = dataTable.Rows[i]["试样识别码"].ToString();
+                string value = dataTable.Rows[i]["样品编号"].ToString();
                 if (value.Contains("Dup"))
                 {
                     DataRow dataRow = dataTable.NewRow();
@@ -734,10 +735,26 @@ namespace LabAutomationElement
                                 {
                                     cell.SetCellValue("分析编号");
                                 }
+                                else if (j == 7)
+                                {
+                                    //这里要判断一下是火焰法还是石墨法
+                                    if (FiresDataSet.Tables.Contains(datatable.TableName))
+                                    {
+                                        string value = "试样浓度\n"
+                                            + "C1(mg/L)";
+                                        cell.SetCellValue(value);
+                                    }
+                                    else if (GraphiteDataSet.Tables.Contains(datatable.TableName))
+                                    {
+                                        string value = "试样浓度\n"
+                                            + "C1(μg/L)";
+                                        cell.SetCellValue(value);
+                                    }
+                                }
                                 else if (j == 8)
                                 {
                                     string value = "土壤样品浓度\n"
-                                        + "C" + ZDJCCompanyComboBox.Text;
+                                        + "C(" + ZDJCCompanyComboBox.Text + ")";
                                     cell.SetCellValue(value);
                                 }
                                 else if (j == 9)
@@ -782,6 +799,24 @@ namespace LabAutomationElement
             {
                 if (i == datatable.Rows.Count)
                 {
+                    int rowNum = i + 6;
+                    HSSFRow row = (HSSFRow)sheet.CreateRow(rowNum); //创建行或者获取行
+                    row.HeightInPoints = 20;
+                    for (int j = 0; j < horizontalSheetColumnCount; j++)
+                    {
+                        var cell = row.CreateCell(j);
+                        cell.CellStyle = bordercellStyle;
+                        if (j == 1)
+                        {
+                            cell.SetCellValue("以下空白");
+                            CellRangeAddress region = new CellRangeAddress(rowNum,rowNum,j,j + 1);
+                            sheet.AddMergedRegion(region);
+                        }
+                        else
+                        {
+                            cell.SetCellValue(string.Empty);
+                        }
+                    }
                 }
                 else
                 {
@@ -828,10 +863,28 @@ namespace LabAutomationElement
                                     cell.SetCellValue(value);
                                     break;
                                 }
+                            case 7:
+                                {
+                                    string value = datatable.Rows[i][j - 2].ToString();
+                                    if (!value.Contains("/"))
+                                    {
+                                        value = CalculateAccuracyC1Round(value);
+                                    }
+                                    cell.SetCellValue(value);
+                                    break;
+                                }
                             case 8:
                                 {
-                                    //计算精度函数
                                     string value = string.Empty;
+                                    //计算精度函数
+                                    if (FiresDataSet.Tables.Contains(datatable.TableName))
+                                    {
+                                        value = FireCompareCompoundWithFormula(row);
+                                    }
+                                    else if (GraphiteDataSet.Tables.Contains(datatable.TableName))
+                                    {
+                                        value = GrapCompareCompoundWithFormula(row);
+                                    }
                                     cell.SetCellValue(value);
                                     break;
                                 }
@@ -864,6 +917,7 @@ namespace LabAutomationElement
                 }
             }
         }
+
 
 
         /// <summary>
@@ -917,48 +971,12 @@ namespace LabAutomationElement
             }
         }
 
-        private string CalculateAccuracySu(double c)
-        {
-            string newC = c.ToString();
-            string[] strC = newC.Split(".");
-            //有小数点
-            if (strC.Length > 1)
-            {
-                string leftC = strC[0];
-                string rightC = strC[1];
-                if (leftC.Length > 3)
-                {
-                    return leftC;
-                }
-                else
-                {
-                    newC = Math.Round(c,3 - leftC.Length).ToString();
-                }
-            }
-            //计算完毕都需要补零
-            if (newC.Length < 4 && newC.Contains("."))
-            {
-                newC += "0";
-            }
-            else if (newC.Length < 4 && !newC.Contains("."))
-            {
-                newC += ".";
-                int lenC = newC.Length;
-                for (int i = 0; i < 4 - lenC; i++)
-                {
-                    newC += "0";
-                }
-            }
-
-            return newC;
-        }
-
         /// <summary>
         /// 科学计数法
         /// </summary>
         /// <param name="testNum"></param>5
         /// <returns></returns>
-        private string ScientificCounting(double testNum)
+        private string ScientificCounting(decimal testNum)
         {
             string returnnum = string.Empty;
             string oneNum = "1";
@@ -969,163 +987,215 @@ namespace LabAutomationElement
                     oneNum += "0";
                 }
 
-                double onenum = double.Parse(oneNum);
+                decimal onenum = decimal.Parse(oneNum);
                 returnnum = (testNum / onenum).ToString() + "×" + "10" + (testNum.ToString().Length - 1).ToString();
             }
             return returnnum;
         }
 
         /// <summary>
-        /// 计算平行样浓度平均值
+        /// 
         /// </summary>
-        /// <param name="compoundName"></param>
-        /// <param name="modelC"></param>
-        /// <param name="sampleName1"></param>
-        /// <param name="sampleName2"></param>
+        /// <param name="c1"></param>
+        /// <param name="sampleName"></param>
         /// <returns></returns>
-        private string CompareCompoundWithFormula(string compoundName,string modelC,string sampleName1,string sampleName2)
+        private string FireCompareCompoundWithFormula(HSSFRow row)
         {
-            //计算公式C = Ci × f × V1 / (m × Wdm)
-            //稀释倍数
-            double f = double.NaN;
-            //定容体积
-            double V1 = double.NaN;
-            //取样量
-            double m = double.NaN;
-            //干物质含量
-            double Wdm = double.NaN;
-
-            //目标物上机测定浓度
-            double Ci;
-            double C1 = double.NaN;
-            double C2 = double.NaN;
-            foreach (DataTable dataTable in compoundsDataSet.Tables)
+            HSSFSheet sheet = row.Sheet as HSSFSheet;
+            //火焰法计算公式C=C1×K×V/W×Wdm
+            string sampleName = row.GetCell(1).StringCellValue;
+            if (sampleName.Contains("CCV"))
             {
-                //找到该化合物对应的datatable
-                if (dataTable.TableName == compoundName)
+                return "/";
+            }
+            if (sampleName.Contains("平均"))
+            {
+                int num = row.RowNum;
+                HSSFRow row1 = sheet.GetRow(num - 1) as HSSFRow;
+                HSSFRow row2 = sheet.GetRow(num - 2) as HSSFRow;
+                decimal CC = decimal.Parse(row1.GetCell(8).StringCellValue);
+                decimal CCC = decimal.Parse(row2.GetCell(8).StringCellValue);
+                decimal C = (CC + CCC) / 2;
+                string realC = CalculateAccuracyC(C.ToString(),sheet.SheetName);
+                return realC;
+            }
+            else
+            {
+                //试样浓度C1
+                decimal C1 = decimal.Zero;
+                if (row.GetCell(7).StringCellValue.Contains("/"))
+  
                 {
-                    for (int i = 0; i < dataTable.Rows.Count; i++)
+                    C1 = 1;
+                }
+                else
+                {
+                    C1 = decimal.Parse(row.GetCell(7).StringCellValue);
+                }
+                //稀释倍数K
+                decimal K = decimal.Zero;
+                if (row.GetCell(6).StringCellValue.Contains("/"))
+                {
+                    K = 1;
+                }
+                else
+                {
+                    K = decimal.Parse(row.GetCell(6).StringCellValue);
+                }
+                //样品体积V
+                decimal V = decimal.Zero;
+                if (row.GetCell(5).StringCellValue.Contains("/"))
+                {
+                    V = 1;
+                }
+                else
+                {
+                    V = decimal.Parse(row.GetCell(5).StringCellValue);
+                }
+                //干物质含量Wdm
+                decimal Wdm = decimal.Zero;
+                if (row.GetCell(4).StringCellValue.Contains("/"))
+                {
+                    Wdm = 1;
+                }
+                else
+                {
+                    Wdm = decimal.Parse(row.GetCell(4).StringCellValue.Replace("%","")) / 100;
+                }
+                //样品重量W
+                decimal W = decimal.Zero;
+                if (row.GetCell(3).StringCellValue.Contains("/"))
+                {
+                    W = 1;
+                }
+                else
+                {
+                    W = decimal.Parse(row.GetCell(3).StringCellValue);
+                }
+
+                decimal moleculeV = decimal.Parse((constantvolumeComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
+                decimal denominatorW = decimal.Parse((samplingquantityComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
+                decimal FireC1 = decimal.Parse((FireComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
+                decimal ZDJCC = decimal.Parse((ZDJCCompanyComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
+                decimal l = moleculeV * FireC1 * (ZDJCC / denominatorW);
+                decimal C = C1 * K * V / W * Wdm * l;
+
+                foreach (KeyValuePair<string,string> keyValuePair in compoundsNameList)
+                {
+                    if (keyValuePair.Key == sheet.SheetName)
                     {
-                        for (int j = 0; j < dataTable.Columns.Count; j++)
+                        string modelC = keyValuePair.Value;
+                        if (C > decimal.Parse(modelC))
                         {
-                            //找到该化合物对应的样品编号和浓度数据
-                            string dtsampleName = dataTable.Rows[i][j].ToString();
-
-                            if (dtsampleName == sampleName1)
-                            {
-                                string potency = dataTable.Rows[i]["含量"].ToString();
-                                if (!potency.Contains("-"))
-                                {
-                                    Ci = double.Parse(potency);
-                                    //公式计算
-                                    //先用写死的，然后之后学习反射
-                                    double moleculeV1 = double.Parse((constantvolumeComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
-                                    double denominatorM = double.Parse((samplingquantityComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
-                                    double taggetC = double.Parse((FireComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
-                                    double ZDJCCi = double.Parse((ZDJCCompanyComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
-                                    //单位换算
-                                    double k = taggetC / ZDJCCi * (moleculeV1 / denominatorM);
-
-                                    C1 = (Ci * f * V1 / (m * Wdm)) * k;
-
-                                }
-                            }
-                            if (dtsampleName == sampleName2)
-                            {
-                                string potency = dataTable.Rows[i]["含量"].ToString();
-                                if (!potency.Contains("-"))
-                                {
-                                    Ci = double.Parse(potency);
-                                    //公式计算
-                                    //先用写死的，然后之后学习反射
-                                    double moleculeV1 = double.Parse((constantvolumeComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
-                                    double denominatorM = double.Parse((samplingquantityComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
-                                    double taggetC = double.Parse((FireComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
-                                    double ZDJCCi = double.Parse((ZDJCCompanyComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
-                                    //单位换算
-                                    double k = taggetC / ZDJCCi * (moleculeV1 / denominatorM);
-
-                                    C2 = (Ci * f * V1 / (m * Wdm)) * k;
-                                }
-                            }
+                            string realC = CalculateAccuracyC(C.ToString(),sheet.SheetName);
+                            return realC;
                         }
                     }
                 }
-            }
-
-            double C = (C1 + C2) / 2;
-            if (C > double.Parse(modelC))
-            {
-                string realC = CalculateAccuracyC(compoundName,C.ToString());
-                return realC;
             }
 
             return "ND";
         }
 
-
         /// <summary>
         /// 计算目标化合物浓度
         /// </summary>
-        /// <param name="compoundName"></param>
-        /// <param name="modelC"></param>
         /// <param name="sampleName"></param>
         /// <returns></returns>
-        private string CompareCompoundWithFormula(string compoundName,string modelC,string sampleName)
+        private string GrapCompareCompoundWithFormula(HSSFRow row)
         {
-            //计算公式C = Ci × f × V1 / (m × Wdm)
-            //稀释倍数
-            double f = double.NaN;
-            //定容体积
-            double V1 = double.NaN;
-            //取样量
-            double m = double.NaN;
-            //干物质含量
-            double Wdm = double.NaN;
-
-            //目标物上机测定浓度
-            double Ci;
-            foreach (DataTable dataTable in compoundsDataSet.Tables)
+            //计算公式C=C1×K×V/W×(1-f)
+            HSSFSheet sheet = row.Sheet as HSSFSheet;
+            //火焰法计算公式C=C1×K×V/W×Wdm
+            string sampleName = row.GetCell(1).StringCellValue;
+            if (sampleName.Contains("CCV"))
             {
-                //找到该化合物对应的datatable
-                if (dataTable.TableName == compoundName)
+                return "/";
+            }
+            if (sampleName.Contains("平均"))
+            {
+                int num = row.RowNum;
+                HSSFRow row1 = sheet.GetRow(num - 1) as HSSFRow;
+                HSSFRow row2 = sheet.GetRow(num - 2) as HSSFRow;
+                decimal CC = decimal.Parse(row1.GetCell(8).StringCellValue);
+                decimal CCC = decimal.Parse(row2.GetCell(8).StringCellValue);
+                decimal C = (CC + CCC) / 2;
+                string realC = CalculateAccuracyC(C.ToString(),sheet.SheetName);
+                return realC;
+            }
+            else
+            {
+                //试样浓度C1
+                decimal C1 = decimal.Zero;
+                if (row.GetCell(7).StringCellValue.Contains("/"))
                 {
-                    for (int i = 0; i < dataTable.Rows.Count; i++)
+                    C1 = 1;
+                }
+                else
+                {
+                    C1 = decimal.Parse(row.GetCell(7).StringCellValue);
+                }
+                //稀释倍数K
+                decimal K = decimal.Zero;
+                if (row.GetCell(6).StringCellValue.Contains("/"))
+                {
+                    K = 1;
+                }
+                else
+                {
+                    K = decimal.Parse(row.GetCell(6).StringCellValue);
+                }
+                //样品体积V
+                decimal V = decimal.Zero;
+                if (row.GetCell(5).StringCellValue.Contains("/"))
+                {
+                    V = 1;
+                }
+                else
+                {
+                    V = decimal.Parse(row.GetCell(5).StringCellValue);
+                }
+                //水分f
+                decimal f = decimal.Zero;
+                if (row.GetCell(4).StringCellValue.Contains("/"))
+                {
+                    f = 1;
+                }
+                else
+                {
+                    f = decimal.Parse(row.GetCell(4).StringCellValue.Replace("%","")) / 100;
+                }
+                //样品重量W
+                decimal W = decimal.Zero;
+                if (row.GetCell(3).StringCellValue.Contains("/"))
+                {
+                    W = 1;
+                }
+                else
+                {
+                    W = decimal.Parse(row.GetCell(3).StringCellValue);
+                }
+
+                decimal moleculeV = decimal.Parse((constantvolumeComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
+                decimal denominatorW = decimal.Parse((samplingquantityComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
+                decimal FireC1 = decimal.Parse((FireComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
+                decimal ZDJCC = decimal.Parse((ZDJCCompanyComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
+                decimal l = moleculeV * FireC1 * (ZDJCC / denominatorW) * 0.001M;
+                decimal C = C1 * K * V / W * (1 - f) * l;
+
+                foreach (KeyValuePair<string,string> keyValuePair in compoundsNameList)
+                {
+                    if (keyValuePair.Key == sheet.SheetName)
                     {
-                        for (int j = 0; j < dataTable.Columns.Count; j++)
+                        string modelC = keyValuePair.Value;
+                        if (C > decimal.Parse(modelC))
                         {
-                            //找到该化合物对应的样品编号和浓度数据
-                            string dtsampleName = dataTable.Rows[i][j].ToString();
-                            if (dtsampleName == sampleName)
-                            {
-                                string potency = dataTable.Rows[i]["含量"].ToString();
-                                if (!potency.Contains("-"))
-                                {
-                                    Ci = double.Parse(potency);
-                                    //公式计算
-                                    //先用写死的，然后之后学习反射
-                                    double C = double.NaN;
-                                    double moleculeV1 = double.Parse((constantvolumeComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
-                                    double denominatorM = double.Parse((samplingquantityComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
-                                    double taggetC = double.Parse((FireComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
-                                    double ZDJCCi = double.Parse((ZDJCCompanyComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
-                                    //单位换算
-                                    double k = taggetC / ZDJCCi * (moleculeV1 / denominatorM);
-
-                                    C = (Ci * f * V1 / (m * Wdm)) * k;
-
-                                    if (C > double.Parse(modelC))
-                                    {
-                                        string realC = CalculateAccuracyC(compoundName,C.ToString());
-                                        return realC;
-                                    }
-                                }
-                            }
+                            string realC = CalculateAccuracyC(C.ToString(),sheet.SheetName);
+                            return realC;
                         }
                     }
                 }
             }
-
             return "ND";
         }
 
@@ -1147,81 +1217,6 @@ namespace LabAutomationElement
             return cellStyle;
         }
 
-        private HSSFCellStyle CreateGreyStyle(HSSFWorkbook workbook)
-        {
-            HSSFCellStyle cellStyle = (HSSFCellStyle)workbook.CreateCellStyle(); //创建列头单元格实例样式
-            var cellStyleFont = (HSSFFont)workbook.CreateFont(); //创建变色字体
-            cellStyleFont.Color = HSSFColor.Grey25Percent.Index;
-            cellStyle.SetFont(cellStyleFont); //将字
-            cellStyle.Alignment = NPOI.SS.UserModel.HorizontalAlignment.Center; //水平居中
-            cellStyle.VerticalAlignment = NPOI.SS.UserModel.VerticalAlignment.Center; //垂直居中
-            cellStyle.WrapText = true;//自动换行
-            cellStyle.BorderBottom = BorderStyle.Thin;
-            cellStyle.BorderRight = BorderStyle.Thin;
-            cellStyle.BorderTop = BorderStyle.Thin;
-            cellStyle.BorderLeft = BorderStyle.Thin;
-            cellStyle.TopBorderColor = HSSFColor.Black.Index;//DarkGreen(黑绿色)
-            cellStyle.RightBorderColor = HSSFColor.Black.Index;
-            cellStyle.BottomBorderColor = HSSFColor.Black.Index;
-            cellStyle.LeftBorderColor = HSSFColor.Black.Index;
-
-            return cellStyle;
-        }
-
-        private HSSFCellStyle CreateRedStyle(HSSFWorkbook workbook)
-        {
-            HSSFCellStyle cellStyle = (HSSFCellStyle)workbook.CreateCellStyle(); //创建列头单元格实例样式
-            var cellStyleFont = (HSSFFont)workbook.CreateFont(); //创建变色字体
-            cellStyleFont.Color = HSSFColor.Red.Index;
-            cellStyle.SetFont(cellStyleFont); //将字
-            cellStyle.Alignment = NPOI.SS.UserModel.HorizontalAlignment.Center; //水平居中
-            cellStyle.VerticalAlignment = NPOI.SS.UserModel.VerticalAlignment.Center; //垂直居中
-            cellStyle.WrapText = true;//自动换行
-            cellStyle.BorderBottom = BorderStyle.Thin;
-            cellStyle.BorderRight = BorderStyle.Thin;
-            cellStyle.BorderTop = BorderStyle.Thin;
-            cellStyle.BorderLeft = BorderStyle.Thin;
-            cellStyle.TopBorderColor = HSSFColor.Black.Index;//DarkGreen(黑绿色)
-            cellStyle.RightBorderColor = HSSFColor.Black.Index;
-            cellStyle.BottomBorderColor = HSSFColor.Black.Index;
-            cellStyle.LeftBorderColor = HSSFColor.Black.Index;
-
-            return cellStyle;
-        }
-
-        private HSSFCellStyle CreateColorStyle(HSSFWorkbook workbook,string setvalue)
-        {
-            HSSFCellStyle cellStyle = (HSSFCellStyle)workbook.CreateCellStyle(); //创建列头单元格实例样式
-            var cellStyleFont = (HSSFFont)workbook.CreateFont(); //创建变色字体
-
-            if (setvalue.Contains("Dup"))
-            {
-                cellStyleFont.Color = HSSFColor.SeaGreen.Index;
-            }
-            else if (setvalue.Contains("MS"))
-            {
-                cellStyleFont.Color = HSSFColor.Red.Index;
-            }
-            else if (setvalue.Length > 3 && setvalue.Remove(0,setvalue.Length - 3).Contains("102"))
-            {
-                cellStyleFont.Color = HSSFColor.SkyBlue.Index;
-            }
-
-            cellStyle.SetFont(cellStyleFont); //将字
-            cellStyle.Alignment = NPOI.SS.UserModel.HorizontalAlignment.Center; //水平居中
-            cellStyle.VerticalAlignment = NPOI.SS.UserModel.VerticalAlignment.Center; //垂直居中
-            cellStyle.WrapText = true;//自动换行
-            cellStyle.BorderBottom = BorderStyle.Thin;
-            cellStyle.BorderRight = BorderStyle.Thin;
-            cellStyle.BorderTop = BorderStyle.Thin;
-            cellStyle.BorderLeft = BorderStyle.Thin;
-            cellStyle.TopBorderColor = HSSFColor.Black.Index;//DarkGreen(黑绿色)
-            cellStyle.RightBorderColor = HSSFColor.Black.Index;
-            cellStyle.BottomBorderColor = HSSFColor.Black.Index;
-            cellStyle.LeftBorderColor = HSSFColor.Black.Index;
-
-            return cellStyle;
-        }
         private void ComplierCode(string expression)
         {
             CSharpCodeProvider objCSharpCodePrivoder = new CSharpCodeProvider();
@@ -1254,7 +1249,28 @@ namespace LabAutomationElement
         }
 
         /// <summary>
-        /// 补齐四位数的零
+        /// 百分比输出
+        /// </summary>
+        /// <param name="compoundName"></param>
+        /// <param name="v"></param>
+        /// <returns></returns>
+        private string CalculateAccuracyC1Round(string value)
+        {
+            double num = double.Parse(value);
+            if (num > -10 && num < 10)
+            {
+                num = Math.Round(num,3,MidpointRounding.ToEven);
+            }
+            else if (num > -100 && num < 100)
+            {
+                num = Math.Round(num,2,MidpointRounding.ToEven);
+            }
+            return num.ToString();
+        }
+
+
+        /// <summary>
+        /// 百分比输出
         /// </summary>
         /// <param name="compoundName"></param>
         /// <param name="v"></param>
@@ -1313,77 +1329,42 @@ namespace LabAutomationElement
         }
 
         /// <summary>
-        /// 计算精度
+        /// C小数位数精度计算
         /// </summary>
-        /// <param name="compoundName"></param>
         /// <param name="C"></param>
         /// <returns></returns>
-        private string CalculateAccuracyC(string compoundName,string C)
+        private string CalculateAccuracyC(string value,string compoundsName)
         {
-            double answer = double.NaN;
-            string accuracy = AccuracyComboBox.SelectedItem.ToString();
-            int num = 0;
-            //选择默认方式
-            if (accuracy == AccuracyComboBox.Items[0].ToString())
+            decimal C = decimal.Parse(value);
+            if (C < 10)
             {
                 foreach (KeyValuePair<string,string> keyValuePair in compoundsNameList)
                 {
+                    if (keyValuePair.Key == compoundsName)
+                    {
+                        string modelC = keyValuePair.Value;
+                        string[] numC = modelC.Split(".");
+                        int numModelC = numC[1].Length;
+                        C = Math.Round(C,numModelC,MidpointRounding.AwayFromZero);
+                    }
+                }
+            }
+            else if (C >= 10 && C < 100)
+            {
+                C = Math.Round(C,1,MidpointRounding.AwayFromZero);
+            }
+            else if (C >= 100 && C < 1000)
+            {
+                C = Math.Round(C,0,MidpointRounding.AwayFromZero);
+            }
+            else if (C > 1000)
+            {
+                string scientfiC = ScientificCounting(C);
+                return scientfiC;
+            }
 
-                    if (keyValuePair.Key == compoundName)
-                    {
-                        string[] beforeValue = keyValuePair.Value.Split(".");
-                        //没有小数点的
-                        if (beforeValue.Length < 2)
-                        {
-                            answer = Math.Round(double.Parse(C),0);
-                        }
-                        else
-                        {
-                            answer = Math.Round(double.Parse(C),beforeValue[beforeValue.Length - 1].Length);
-                        }
-                        string[] afterValue = answer.ToString().Trim().Split(".");
-                        if (afterValue.Length < 2)
-                        {
-                            num = beforeValue[beforeValue.Length - 1].Length;
-                        }
-                        else
-                        {
-                            num = beforeValue[beforeValue.Length - 1].Length - afterValue[afterValue.Length - 1].Length;
-                        }
-                    }
-                }
-            }
-            //选择其他位数
-            else
-            {
-                string[] beforeValue = accuracy.Split(":");
-                answer = Math.Round(double.Parse(C),int.Parse(beforeValue[beforeValue.Length - 1]));
-                string[] afterValue = answer.ToString().Trim().Split(".");
-                num = int.Parse(beforeValue[beforeValue.Length - 1]) - afterValue[afterValue.Length - 1].Length;
-            }
-            //计算后补零
-            if (num != 0)
-            {
-                if (answer.ToString().Contains("."))
-                {
-                    string newanswer = answer.ToString();
-                    for (int i = 0; i < num; i++)
-                    {
-                        newanswer += "0";
-                    }
-                    return newanswer;
-                }
-                else
-                {
-                    string newanswer = answer.ToString() + ".";
-                    for (int i = 0; i < num; i++)
-                    {
-                        newanswer += "0";
-                    }
-                    return newanswer;
-                }
-            }
-            return answer.ToString().Trim();
+            string realC = C.ToString();
+            return realC;
         }
 
 
