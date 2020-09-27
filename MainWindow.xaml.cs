@@ -36,6 +36,7 @@ namespace LabAutomationElement
         /// </summary>
         List<KeyValuePair<string,string>> compoundsNameList = new List<KeyValuePair<string,string>>();
         List<KeyValuePair<string,string>> preCompoundsNameList = new List<KeyValuePair<string,string>>();
+        List<KeyValuePair<string,string>> GSSNameList = new List<KeyValuePair<string,string>>();
 
         /// <summary>
         /// 委托单号
@@ -45,9 +46,9 @@ namespace LabAutomationElement
         //调整一个竖表格的总列数
         int horizontalSheetColumnCount = 10;
         /// <summary>
-        /// 每个化合物的datatable
+        /// 每个元素的GSSdatatable
         /// </summary>
-        DataSet compoundsDataSet = new DataSet();
+        DataSet GSSDataSet = new DataSet();
 
         /// <summary>
         /// 火焰元素的datatable合集
@@ -74,6 +75,87 @@ namespace LabAutomationElement
             dilutionratioLabel.Tag = 1;
             LDMCLabel.Tag = 2;
             constantvolumeLabel.Tag = 3;
+            InitializeGSS();
+        }
+
+        /// <summary>
+        /// 初始化GSS
+        /// </summary>
+        private void InitializeGSS()
+        {
+            string path = AppDomain.CurrentDomain.BaseDirectory;
+            string GSSname = "GSS.xlsx";
+            string fullpath = System.IO.Path.Combine(path,GSSname);
+            IWorkbook workbook = null;
+            if (File.Exists(fullpath))
+            {
+                using (FileStream fs = File.OpenRead(fullpath))
+                {
+                    // 2007版本
+                    if (fullpath.Contains(".xlsx"))
+                    {
+                        workbook = new XSSFWorkbook(fs);
+                    }
+                    // 2003版本
+                    else if (fullpath.Contains(".xls"))
+                    {
+                        workbook = new HSSFWorkbook(fs);
+                    }
+                    if (workbook != null)
+                    {
+                        ISheet sheet = workbook.GetSheetAt(0);//读取第一个sheet，当然也可以循环读取每个sheet
+                        for (int i = 0; i < sheet.LastRowNum; i++)
+                        {
+                            IRow row = sheet.GetRow(i);
+                            //先添加表头做成datatable
+                            if (i == 0)
+                            {
+                                for (int j = 1; j < row.LastCellNum; j++)
+                                {
+                                    ICell cell = row.GetCell(j);
+                                    if (cell != null)
+                                    {
+                                        string elementName = cell.StringCellValue;
+                                        DataTable GSSDataTable = new DataTable();
+                                        GSSDataTable.TableName = elementName;
+                                        GSSDataTable.Columns.Add("GSSName");
+                                        GSSDataTable.Columns.Add("max");
+                                        GSSDataTable.Columns.Add("min");
+                                        GSSDataTable.Columns.Add("displayName");
+                                        GSSDataSet.Tables.Add(GSSDataTable);
+                                    }
+                                }
+                            }
+                            //把剩下数据转换成datatable的内容
+                            else
+                            {
+                                for (int j = 1; j < row.LastCellNum; j++)
+                                {
+                                    ICell firstCell = row.GetCell(0);
+                                    ICell cell = row.GetCell(j);
+                                    if (cell != null && cell.StringCellValue != string.Empty)
+                                    {
+                                        {
+                                            string GSSName = firstCell.StringCellValue;
+                                            string displayName = cell.StringCellValue;
+                                            string[] str = displayName.Split("±");
+                                            decimal max = decimal.Parse(str[0]) + decimal.Parse(str[1]);
+                                            decimal min = decimal.Parse(str[0]) - decimal.Parse(str[1]);
+                                            DataTable dataTable = GSSDataSet.Tables[j - 1];
+                                            DataRow dr = dataTable.NewRow();
+                                            dr["GSSName"] = GSSName;
+                                            dr["max"] = max;
+                                            dr["min"] = min;
+                                            dr["displayName"] = displayName;
+                                            dataTable.Rows.Add(dr);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -411,23 +493,113 @@ namespace LabAutomationElement
 
             TabItem tabItem = new TabItem();
             //tabItem.Header = name[1] + " | " + name[2];
-            StackPanel stackPanel = CreateStackPanel(compoundName,keyValueNum);
-            tabItem.Header = stackPanel;
-            DataGrid dg = new DataGrid();
-            dg.Name = "dataGrid";
-            dg.ItemsSource = dataTable.DefaultView;
-            dg.CanUserSortColumns = true;
-            dg.CanUserReorderColumns = true;
-            tabItem.Content = dg;
+            StackPanel headerSP = CreateHeaderStackPanel(compoundName,keyValueNum);
+            tabItem.Header = headerSP;
+            //GSS
+            StackPanel stackPanel = new StackPanel();
+            stackPanel.Orientation = Orientation.Vertical;
+            stackPanel.VerticalAlignment = System.Windows.VerticalAlignment.Center;
+            stackPanel.HorizontalAlignment = System.Windows.HorizontalAlignment.Center;
+            stackPanel.Children.Add(CreateInnerStackPanel());
+            //元素
+            DataGrid datagrid = new DataGrid();
+            datagrid.Name = "dataGrid";
+            datagrid.ItemsSource = dataTable.DefaultView;
+            datagrid.CanUserSortColumns = true;
+            datagrid.CanUserReorderColumns = true;
+            Grid grid = new Grid();
+            ColumnDefinition cd1 = new ColumnDefinition();
+            cd1.Width = new GridLength(1,GridUnitType.Star);
+            ColumnDefinition cd2 = new ColumnDefinition();
+            cd2.Width = new GridLength(1,GridUnitType.Star);
+            grid.ColumnDefinitions.Add(cd1);
+            grid.ColumnDefinitions.Add(cd2);
+            grid.Children.Add(datagrid);
+            grid.Children.Add(stackPanel);
+            Grid.SetColumn(datagrid,0);
+            Grid.SetColumn(stackPanel,1);
+            tabItem.Content = grid;
             tabControl.Items.Add(tabItem);
             //compoundsDataSet.Tables.Add(dataTable);
+        }
+
+        /// <summary>
+        /// 创建stackpanel用的stackpanel
+        /// </summary>
+        /// <returns></returns>
+        private StackPanel CreateInnerStackPanel()
+        {
+            StackPanel stackPanel = new StackPanel();
+            stackPanel.Orientation = Orientation.Horizontal;
+            stackPanel.VerticalAlignment = System.Windows.VerticalAlignment.Center;
+            stackPanel.HorizontalAlignment = System.Windows.HorizontalAlignment.Center;
+
+            CheckBox checkBox = new CheckBox();
+            checkBox.HorizontalContentAlignment = System.Windows.HorizontalAlignment.Center;
+            checkBox.HorizontalAlignment = System.Windows.HorizontalAlignment.Center;
+            checkBox.Checked += CheckBox_Checked;
+            checkBox.Margin = new Thickness(5,5,5,5);
+            ComboBox comboBox = new ComboBox();
+            comboBox.Width = 100;
+            comboBox.HorizontalAlignment = System.Windows.HorizontalAlignment.Center;
+            comboBox.VerticalAlignment = System.Windows.VerticalAlignment.Center;
+
+            ComboBoxItem cbi1 = new ComboBoxItem();
+            cbi1.Content = "GSS-8";
+            ComboBoxItem cbi2 = new ComboBoxItem();
+            cbi2.Content = "GSS-9";
+            ComboBoxItem cbi3 = new ComboBoxItem();
+            cbi3.Content = "GSS-18";
+            ComboBoxItem cbi4 = new ComboBoxItem();
+            cbi4.Content = "GSS-20";
+            ComboBoxItem cbi5 = new ComboBoxItem();
+            cbi5.Content = "GSS-21";
+            ComboBoxItem cbi6 = new ComboBoxItem();
+            cbi6.Content = "GSS-22";
+            ComboBoxItem cbi7 = new ComboBoxItem();
+            cbi7.Content = "GSS-23";
+            ComboBoxItem cbi8 = new ComboBoxItem();
+            cbi8.Content = "GSS-24";
+            ComboBoxItem cbi9 = new ComboBoxItem();
+            cbi9.Content = "GSS-25";
+            ComboBoxItem cbi10 = new ComboBoxItem();
+            cbi10.Content = "GSS-32";
+            ComboBoxItem cbi11 = new ComboBoxItem();
+            cbi11.Content = "GSS-33";
+            ComboBoxItem cbi12 = new ComboBoxItem();
+            cbi12.Content = "GSS-34";
+            comboBox.Items.Add(cbi1);
+            comboBox.Items.Add(cbi2);
+            comboBox.Items.Add(cbi3);
+            comboBox.Items.Add(cbi4);
+            comboBox.Items.Add(cbi5);
+            comboBox.Items.Add(cbi6);
+            comboBox.Items.Add(cbi7);
+            comboBox.Items.Add(cbi8);
+            comboBox.Items.Add(cbi9);
+            comboBox.Items.Add(cbi10);
+            comboBox.Items.Add(cbi11);
+            comboBox.Items.Add(cbi12);
+
+            stackPanel.Children.Add(checkBox);
+            stackPanel.Children.Add(comboBox);
+
+            return stackPanel;
+        }
+
+        private void CheckBox_Checked(object sender,RoutedEventArgs e)
+        {
+            CheckBox checkBox = sender as CheckBox;
+            StackPanel stackPanel = checkBox.Parent as StackPanel;
+            StackPanel fatherSp = stackPanel.Parent as StackPanel;
+            fatherSp.Children.Add(CreateInnerStackPanel());
         }
 
         /// <summary>
         /// 创建tabheader用的stackpanel
         /// </summary>
         /// <returns></returns>
-        private StackPanel CreateStackPanel(string compoundsName,int num)
+        private StackPanel CreateHeaderStackPanel(string compoundsName,int num)
         {
             StackPanel stackPanel = new StackPanel();
             stackPanel.Orientation = Orientation.Horizontal;
@@ -558,16 +730,32 @@ namespace LabAutomationElement
         }
 
         /// <summary>
+        /// 生成compoundsNameList
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void importExcel_MouseMove(object sender,MouseEventArgs e)
+        {
+            if (FiresDataSet.Tables.Count == 0 && GraphiteDataSet.Tables.Count == 0)
+            {
+                return;
+            }
+            AddDetectionLimit();
+        }
+
+        /// <summary>
         /// 添加自己填的检出限
         /// </summary>
         private void AddDetectionLimit()
         {
             compoundsNameList.Clear();
+            GSSNameList.Clear();
             TabControl tabControl = maingrid.Children[0] as TabControl;
             foreach (TabItem tabItem in tabControl.Items)
             {
                 string compoundsName = string.Empty;
                 string modelC = string.Empty;
+                string GSSName = string.Empty;
                 StackPanel stackPanel = tabItem.Header as StackPanel;
                 foreach (var item in stackPanel.Children)
                 {
@@ -584,8 +772,22 @@ namespace LabAutomationElement
                         }
                     }
                 }
-                KeyValuePair<string,string> keyValuePair = new KeyValuePair<string,string>(compoundsName,modelC);
-                compoundsNameList.Add(keyValuePair);
+                Grid grid = tabItem.Content as Grid;
+                StackPanel fatherGSS = grid.Children[1] as StackPanel;
+                foreach (var item in fatherGSS.Children)
+                {
+                    StackPanel GSS = item as StackPanel;
+                    CheckBox checkBox = GSS.Children[0] as CheckBox;
+                    ComboBox comboBox = GSS.Children[1] as ComboBox;
+                    if (checkBox.IsChecked == true && comboBox.Text != null && comboBox.Text != "" && comboBox.Text != string.Empty)
+                    {
+                        GSSName = comboBox.Text;
+                    }
+                    KeyValuePair<string,string> kv2 = new KeyValuePair<string,string>(compoundsName,GSSName);
+                    GSSNameList.Add(kv2);
+                }
+                KeyValuePair<string,string> kv1 = new KeyValuePair<string,string>(compoundsName,modelC);
+                compoundsNameList.Add(kv1);
             }
 
             //if (compoundsNameList.Count > 2)
@@ -604,6 +806,8 @@ namespace LabAutomationElement
             //设置顶部大标题样式
             HSSFCellStyle cellStyle = CreateStyle(workbook);
             HSSFCellStyle bordercellStyle = CreateStyle(workbook);
+            HSSFCellStyle cellGreyStyle = CreateGreyStyle(workbook);
+            HSSFCellStyle cellGreeenStyle = CreateGreenStyle(workbook);
             bordercellStyle.BorderLeft = BorderStyle.Thin;
             bordercellStyle.BorderTop = BorderStyle.Thin;
             bordercellStyle.BorderLeft = BorderStyle.Thin;
@@ -691,7 +895,12 @@ namespace LabAutomationElement
                             else if (GraphiteDataSet.Tables.Contains(datatable.TableName))
                             {
                                 ComboBoxItem item = FormulaComboBox.Items[1] as ComboBoxItem;
-                                FormulaCell.SetCellValue(item.Content.ToString());
+                                string value = item.Content.ToString();
+                                HSSFRichTextString rts = new HSSFRichTextString(value);
+                                var cellStyleFont = (HSSFFont)workbook.CreateFont(); //创建字体
+                                cellStyleFont.TypeOffset = FontSuperScript.Super;//字体上标下标
+                                rts.ApplyFont(value.Length - 2,value.Length,cellStyleFont);
+                                FormulaCell.SetCellValue(rts);
                             }
                             CellRangeAddress secondregion = new CellRangeAddress(i,i + 1,horizontalSheetColumnCount - 1,horizontalSheetColumnCount - 1);
                             sheet.AddMergedRegion(secondregion);
@@ -843,18 +1052,18 @@ namespace LabAutomationElement
                                 }
                             case 3:
                                 {
-                                    //计算精度函数
+                                    //样品重量
                                     string value = datatable.Rows[i][j - 2].ToString();
                                     if (!value.Contains("/"))
                                     {
-                                        value = CalculateAccuracyCFour(value);
+                                        value = CalculateAccuracyCX(value,4);
                                     }
                                     cell.SetCellValue(value);
                                     break;
                                 }
                             case 4:
                                 {
-                                    //计算精度函数
+                                    //干物质/水分
                                     string value = datatable.Rows[i][j - 2].ToString();
                                     if (!value.Contains("/") && !value.Contains("%"))
                                     {
@@ -865,6 +1074,7 @@ namespace LabAutomationElement
                                 }
                             case 7:
                                 {
+                                    //试样浓度C1
                                     string value = datatable.Rows[i][j - 2].ToString();
                                     if (!value.Contains("/"))
                                     {
@@ -875,7 +1085,9 @@ namespace LabAutomationElement
                                 }
                             case 8:
                                 {
+                                    //土壤样品浓度C
                                     string value = string.Empty;
+                                    string sampleName = row.GetCell(1).StringCellValue;
                                     //计算精度函数
                                     if (FiresDataSet.Tables.Contains(datatable.TableName))
                                     {
@@ -885,14 +1097,27 @@ namespace LabAutomationElement
                                     {
                                         value = GrapCompareCompoundWithFormula(row);
                                     }
+                                    if (value.Contains("ND"))
+                                    {
+                                        cell.CellStyle = cellGreyStyle;
+                                    }
+                                    else if (sampleName.Contains("平均"))
+                                    {
+                                        cell.CellStyle = cellGreeenStyle;
+                                    }
                                     cell.SetCellValue(value);
                                     break;
                                 }
                             case 9:
                                 {
-                                    //备注
-                                    string value = string.Empty;
-                                    cell.SetCellValue(value);
+                                    if (i == 0)
+                                    {
+                                        //备注下面的GSS
+                                        string remark = "仪器已自动扣除试剂空白";
+                                        cell.SetCellValue(remark);
+                                        CellRangeAddress remarkregion = new CellRangeAddress(row.RowNum,row.RowNum + datatable.Rows.Count,j,j);
+                                        sheet.AddMergedRegion(remarkregion);
+                                    }
                                     break;
                                 }
                             default:
@@ -909,7 +1134,12 @@ namespace LabAutomationElement
             //自动调整列距
             for (int i = 0; i < horizontalSheetColumnCount; i++)
             {
+
                 sheet.AutoSizeColumn(i);
+                if (i == horizontalSheetColumnCount - 1)
+                {
+                    sheet.SetColumnWidth(i,25 * 256);
+                }
                 int width = sheet.GetColumnWidth(i);
                 if (width < 20 * 256)
                 {
@@ -980,7 +1210,7 @@ namespace LabAutomationElement
         {
             string returnnum = string.Empty;
             string oneNum = "1";
-            if (testNum.ToString().Length > 4)
+            if (testNum.ToString().Length >= 4)
             {
                 for (int i = 0; i < testNum.ToString().Length - 1; i++)
                 {
@@ -1004,7 +1234,7 @@ namespace LabAutomationElement
             HSSFSheet sheet = row.Sheet as HSSFSheet;
             //火焰法计算公式C=C1×K×V/W×Wdm
             string sampleName = row.GetCell(1).StringCellValue;
-            if (sampleName.Contains("CCV"))
+            if (sampleName.Contains("CCV") || sampleName.Contains("校准零点"))
             {
                 return "/";
             }
@@ -1016,7 +1246,7 @@ namespace LabAutomationElement
                 decimal CC = decimal.Parse(row1.GetCell(8).StringCellValue);
                 decimal CCC = decimal.Parse(row2.GetCell(8).StringCellValue);
                 decimal C = (CC + CCC) / 2;
-                string realC = CalculateAccuracyC(C.ToString(),sheet.SheetName);
+                string realC = FireCalculateAccuracyC(C.ToString());
                 return realC;
             }
             else
@@ -1078,7 +1308,7 @@ namespace LabAutomationElement
                 decimal FireC1 = decimal.Parse((FireComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
                 decimal ZDJCC = decimal.Parse((ZDJCCompanyComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
                 decimal l = moleculeV * FireC1 * (ZDJCC / denominatorW);
-                decimal C = C1 * K * V / W * Wdm * l;
+                decimal C = ((C1 * K * V) / (W * Wdm)) * l;
 
                 foreach (KeyValuePair<string,string> keyValuePair in compoundsNameList)
                 {
@@ -1087,7 +1317,7 @@ namespace LabAutomationElement
                         string modelC = keyValuePair.Value;
                         if (C > decimal.Parse(modelC))
                         {
-                            string realC = CalculateAccuracyC(C.ToString(),sheet.SheetName);
+                            string realC = FireCalculateAccuracyC(C.ToString());
                             return realC;
                         }
                     }
@@ -1104,11 +1334,10 @@ namespace LabAutomationElement
         /// <returns></returns>
         private string GrapCompareCompoundWithFormula(HSSFRow row)
         {
-            //计算公式C=C1×K×V/W×(1-f)
+            //石墨炉法计算公式C=C1×K×V/W×(1-f)
             HSSFSheet sheet = row.Sheet as HSSFSheet;
-            //火焰法计算公式C=C1×K×V/W×Wdm
             string sampleName = row.GetCell(1).StringCellValue;
-            if (sampleName.Contains("CCV"))
+            if (sampleName.Contains("CCV") || sampleName.Contains("校准零点"))
             {
                 return "/";
             }
@@ -1120,7 +1349,7 @@ namespace LabAutomationElement
                 decimal CC = decimal.Parse(row1.GetCell(8).StringCellValue);
                 decimal CCC = decimal.Parse(row2.GetCell(8).StringCellValue);
                 decimal C = (CC + CCC) / 2;
-                string realC = CalculateAccuracyC(C.ToString(),sheet.SheetName);
+                string realC = GrapCalculateAccuracyC(C.ToString(),sheet.SheetName);
                 return realC;
             }
             else
@@ -1159,7 +1388,7 @@ namespace LabAutomationElement
                 decimal f = decimal.Zero;
                 if (row.GetCell(4).StringCellValue.Contains("/"))
                 {
-                    f = 1;
+                    f = 0;
                 }
                 else
                 {
@@ -1181,7 +1410,7 @@ namespace LabAutomationElement
                 decimal FireC1 = decimal.Parse((FireComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
                 decimal ZDJCC = decimal.Parse((ZDJCCompanyComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
                 decimal l = moleculeV * FireC1 * (ZDJCC / denominatorW) * 0.001M;
-                decimal C = C1 * K * V / W * (1 - f) * l;
+                decimal C = ((C1 * K * V) / (W * (1 - f))) * l;
 
                 foreach (KeyValuePair<string,string> keyValuePair in compoundsNameList)
                 {
@@ -1190,7 +1419,7 @@ namespace LabAutomationElement
                         string modelC = keyValuePair.Value;
                         if (C > decimal.Parse(modelC))
                         {
-                            string realC = CalculateAccuracyC(C.ToString(),sheet.SheetName);
+                            string realC = GrapCalculateAccuracyC(C.ToString(),sheet.SheetName);
                             return realC;
                         }
                     }
@@ -1217,6 +1446,47 @@ namespace LabAutomationElement
             return cellStyle;
         }
 
+        private HSSFCellStyle CreateGreyStyle(HSSFWorkbook workbook)
+        {
+            HSSFCellStyle cellStyle = (HSSFCellStyle)workbook.CreateCellStyle(); //创建列头单元格实例样式
+            var cellStyleFont = (HSSFFont)workbook.CreateFont(); //创建变色字体
+            cellStyleFont.Color = HSSFColor.Grey25Percent.Index;
+            cellStyle.SetFont(cellStyleFont); //将字
+            cellStyle.Alignment = NPOI.SS.UserModel.HorizontalAlignment.Center; //水平居中
+            cellStyle.VerticalAlignment = NPOI.SS.UserModel.VerticalAlignment.Center; //垂直居中
+            cellStyle.WrapText = true;//自动换行
+            cellStyle.BorderBottom = BorderStyle.Thin;
+            cellStyle.BorderRight = BorderStyle.Thin;
+            cellStyle.BorderTop = BorderStyle.Thin;
+            cellStyle.BorderLeft = BorderStyle.Thin;
+            cellStyle.TopBorderColor = HSSFColor.Black.Index;//DarkGreen(黑绿色)
+            cellStyle.RightBorderColor = HSSFColor.Black.Index;
+            cellStyle.BottomBorderColor = HSSFColor.Black.Index;
+            cellStyle.LeftBorderColor = HSSFColor.Black.Index;
+
+            return cellStyle;
+        }
+
+        private HSSFCellStyle CreateGreenStyle(HSSFWorkbook workbook)
+        {
+            HSSFCellStyle cellStyle = (HSSFCellStyle)workbook.CreateCellStyle(); //创建列头单元格实例样式
+            var cellStyleFont = (HSSFFont)workbook.CreateFont(); //创建变色字体
+            cellStyleFont.Color = HSSFColor.SeaGreen.Index;
+            cellStyle.SetFont(cellStyleFont); //将字
+            cellStyle.Alignment = NPOI.SS.UserModel.HorizontalAlignment.Center; //水平居中
+            cellStyle.VerticalAlignment = NPOI.SS.UserModel.VerticalAlignment.Center; //垂直居中
+            cellStyle.WrapText = true;//自动换行
+            cellStyle.BorderBottom = BorderStyle.Thin;
+            cellStyle.BorderRight = BorderStyle.Thin;
+            cellStyle.BorderTop = BorderStyle.Thin;
+            cellStyle.BorderLeft = BorderStyle.Thin;
+            cellStyle.TopBorderColor = HSSFColor.Black.Index;//DarkGreen(黑绿色)
+            cellStyle.RightBorderColor = HSSFColor.Black.Index;
+            cellStyle.BottomBorderColor = HSSFColor.Black.Index;
+            cellStyle.LeftBorderColor = HSSFColor.Black.Index;
+
+            return cellStyle;
+        }
         private void ComplierCode(string expression)
         {
             CSharpCodeProvider objCSharpCodePrivoder = new CSharpCodeProvider();
@@ -1260,12 +1530,14 @@ namespace LabAutomationElement
             if (num > -10 && num < 10)
             {
                 num = Math.Round(num,3,MidpointRounding.ToEven);
+                value = CalculateAccuracyCX(num.ToString(),3);
             }
             else if (num > -100 && num < 100)
             {
                 num = Math.Round(num,2,MidpointRounding.ToEven);
+                value = CalculateAccuracyCX(num.ToString(),2);
             }
-            return num.ToString();
+            return value;
         }
 
 
@@ -1284,23 +1556,23 @@ namespace LabAutomationElement
         }
 
         /// <summary>
-        /// 补齐四位数的零
+        /// 补齐X位数的零
         /// </summary>
         /// <param name="compoundName"></param>
         /// <param name="v"></param>
         /// <returns></returns>
-        private string CalculateAccuracyCFour(string value)
+        private string CalculateAccuracyCX(string value,int X)
         {
             string[] beforeValue = value.Split(".");
             int num;
             //没有小数点的
             if (beforeValue.Length < 2)
             {
-                num = 4;
+                num = X;
             }
             else
             {
-                num = 4 - beforeValue[beforeValue.Length - 1].Length;
+                num = X - beforeValue[beforeValue.Length - 1].Length;
             }
             //计算后补零
             if (num != 0)
@@ -1333,7 +1605,7 @@ namespace LabAutomationElement
         /// </summary>
         /// <param name="C"></param>
         /// <returns></returns>
-        private string CalculateAccuracyC(string value,string compoundsName)
+        private string GrapCalculateAccuracyC(string value,string compoundsName)
         {
             decimal C = decimal.Parse(value);
             if (C < 10)
@@ -1359,6 +1631,7 @@ namespace LabAutomationElement
             }
             else if (C > 1000)
             {
+                C = Math.Round(C,0,MidpointRounding.AwayFromZero);
                 string scientfiC = ScientificCounting(C);
                 return scientfiC;
             }
@@ -1367,6 +1640,24 @@ namespace LabAutomationElement
             return realC;
         }
 
+        /// <summary>
+        /// C小数位数精度计算
+        /// </summary>
+        /// <param name="C"></param>
+        /// <returns></returns>
+        private string FireCalculateAccuracyC(string value)
+        {
+            decimal C = decimal.Parse(value);
+            C = Math.Round(C,0,MidpointRounding.AwayFromZero);
+            if (C > 1000)
+            {
+                string scientfiC = ScientificCounting(C);
+                return scientfiC;
+            }
+
+            string realC = C.ToString();
+            return realC;
+        }
 
         /// <summary>
         /// 导出模板按钮
@@ -1400,6 +1691,12 @@ namespace LabAutomationElement
                     {
                         streamWriter.WriteLine(keyValuePair.Key + "：" + keyValuePair.Value);
                     }
+
+                    foreach (KeyValuePair<string,string> keyValuePair in GSSNameList)
+                    {
+                        streamWriter.WriteLine(keyValuePair.Key + "：" + keyValuePair.Value);
+                    }
+
                     streamWriter.Flush();
                     stream.Flush();
                 }
@@ -1411,19 +1708,7 @@ namespace LabAutomationElement
             }
         }
 
-        /// <summary>
-        /// 生成compoundsNameList
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void importExcel_MouseMove(object sender,MouseEventArgs e)
-        {
-            if (FiresDataSet.Tables.Count == 0 && GraphiteDataSet.Tables.Count == 0)
-            {
-                return;
-            }
-            AddDetectionLimit();
-        }
+
 
         private void TextBox_TextChanged(object sender,TextChangedEventArgs e)
         {

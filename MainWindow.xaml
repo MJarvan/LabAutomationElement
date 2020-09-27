@@ -115,7 +115,7 @@
                         </ComboBox>
                         <!--<RadioButton Name="testZDRadioButton" Margin="10,0,10,0" IsChecked="True" HorizontalAlignment="Center" VerticalAlignment="Center">最低检测质量浓度</RadioButton>-->
                         <RadioButton Margin="10,0,10,0" IsChecked="True" Name="testJCRadioButton" HorizontalAlignment="Center" VerticalAlignment="Center">检出限</RadioButton>
-                        <Label Content="单位：" HorizontalAlignment="Center" VerticalContentAlignment="Center"></Label>
+                        <Label Content="±单位：" HorizontalAlignment="Center" VerticalContentAlignment="Center"></Label>
                         <ComboBox HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="50" Name="ZDJCCompanyComboBox">
                             <ComboBoxItem Tag="1" Content="mg/kg" IsSelected="True"></ComboBoxItem>
                             <ComboBoxItem Tag="0.001" Content="μg/kg"></ComboBoxItem>
