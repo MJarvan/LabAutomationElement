@@ -1339,7 +1339,7 @@ namespace LabAutomationElement
                 }
                 else
                 {
-                    CC = decimal.Parse(row1.GetCell(8).StringCellValue);
+                    CC = decimal.Parse(str1);
                 }
                 if (str2.Contains("×"))
                 {
@@ -1348,7 +1348,7 @@ namespace LabAutomationElement
                 }
                 else
                 {
-                    CCC = decimal.Parse(row2.GetCell(8).StringCellValue);
+                    CCC = decimal.Parse(str2);
                 }
                 //平均要把科学计数法变回正常数
                 decimal C = (CC + CCC) / 2;
@@ -1488,8 +1488,31 @@ namespace LabAutomationElement
                 {
                     return "ND";
                 }
-                decimal CC = decimal.Parse(str1);
-                decimal CCC = decimal.Parse(str2);
+                decimal CC;
+                decimal CCC;
+                if (str1.Contains("ND") || str2.Contains("ND"))
+                {
+                    return "ND";
+                }
+                if (str1.Contains("×"))
+                {
+                    string[] str = str1.Split("×");
+                    CC = decimal.Parse(str[0]) * 10 * decimal.Parse(str[1].Replace("10",""));
+                }
+                else
+                {
+                    CC = decimal.Parse(str1);
+                }
+                if (str2.Contains("×"))
+                {
+                    string[] str = str1.Split("×");
+                    CCC = decimal.Parse(str[0]) * 10 * decimal.Parse(str[1].Replace("10",""));
+                }
+                else
+                {
+                    CCC = decimal.Parse(str2);
+                }
+                //平均要把科学计数法变回正常数
                 decimal C = (CC + CCC) / 2;
                 string realC = GrapCalculateAccuracyC(C.ToString(),sheet.SheetName);
                 return realC;
@@ -1744,7 +1767,7 @@ namespace LabAutomationElement
         }
 
         /// <summary>
-        /// 百分比输出
+        /// 百分比输出(四舍五入)
         /// </summary>
         /// <param name="compoundName"></param>
         /// <param name="v"></param>
@@ -1774,9 +1797,19 @@ namespace LabAutomationElement
         /// <returns></returns>
         private string CalculateAccuracyCPercent(string value)
         {
-            double num = double.Parse(value);
-            num *= 100;
-            value = num.ToString() + "%";
+            decimal num = decimal.Parse(value);
+            if (num == 1)
+            {
+                num *= 100;
+                value = num.ToString() + "%";
+            }
+            else
+            {
+                num *= 100;
+                num = Math.Round(num,1,MidpointRounding.AwayFromZero);
+                value = num.ToString() + "%";
+            }
+
             return value;
         }
 
