@@ -75,16 +75,16 @@ namespace LabAutomationElement
             dilutionratioLabel.Tag = 1;
             LDMCLabel.Tag = 2;
             constantvolumeLabel.Tag = 3;
-            InitializeGSS();
+            AutoLoad();
         }
 
         /// <summary>
         /// 初始化GSS
         /// </summary>
-        private void InitializeGSS()
+        private void AutoLoad()
         {
             string path = AppDomain.CurrentDomain.BaseDirectory;
-            string GSSname = "GSS.xlsx";
+            string GSSname = "AutoLoad.xlsx";
             string fullpath = System.IO.Path.Combine(path,GSSname);
             IWorkbook workbook = null;
             if (File.Exists(fullpath))
@@ -1147,10 +1147,12 @@ namespace LabAutomationElement
                                     {
                                         value = GrapCompareCompoundWithFormula(row);
                                     }
+                                    //换颜色
                                     if (value.Contains("ND"))
                                     {
                                         cell.CellStyle = cellGreyStyle;
                                     }
+
                                     else if (sampleName.Contains("平均"))
                                     {
                                         cell.CellStyle = cellGreenStyle;
@@ -1166,6 +1168,17 @@ namespace LabAutomationElement
                                         {
                                             cell.CellStyle = cellRedStyle;
                                         }
+                                    }
+
+                                    //判断是否科学计数法
+                                    if (value.Contains("×"))
+                                    {
+                                        HSSFRichTextString rts = new HSSFRichTextString(value);
+                                        var cellStyleFont = (HSSFFont)workbook.CreateFont(); //创建字体
+                                        cellStyleFont.TypeOffset = FontSuperScript.Super;//字体上标下标
+                                        rts.ApplyFont(value.Length - 1,value.Length,cellStyleFont);
+                                        cell.SetCellValue(rts);
+                                        break;
                                     }
                                     cell.SetCellValue(value);
                                     break;
@@ -1335,7 +1348,11 @@ namespace LabAutomationElement
                 if (str1.Contains("×"))
                 {
                     string[] str = str1.Split("×");
-                    CC = decimal.Parse(str[0]) * 10 * decimal.Parse(str[1].Replace("10",""));
+                    CC = decimal.Parse(str[0]);
+                    for (int i = 0; i < int.Parse(str[1].Replace("10","")); i++)
+                    {
+                        CC *= 10;
+                    }
                 }
                 else
                 {
@@ -1343,8 +1360,12 @@ namespace LabAutomationElement
                 }
                 if (str2.Contains("×"))
                 {
-                    string[] str = str1.Split("×");
-                    CCC = decimal.Parse(str[0]) * 10 * decimal.Parse(str[1].Replace("10",""));
+                    string[] str = str2.Split("×");
+                    CCC = decimal.Parse(str[0]);
+                    for (int i = 0; i < int.Parse(str[1].Replace("10","")); i++)
+                    {
+                        CCC *= 10;
+                    }
                 }
                 else
                 {
@@ -1497,7 +1518,11 @@ namespace LabAutomationElement
                 if (str1.Contains("×"))
                 {
                     string[] str = str1.Split("×");
-                    CC = decimal.Parse(str[0]) * 10 * decimal.Parse(str[1].Replace("10",""));
+                    CC = decimal.Parse(str[0]);
+                    for (int i = 0; i < int.Parse(str[1].Replace("10","")); i++)
+                    {
+                        CC *= 10;
+                    }
                 }
                 else
                 {
@@ -1505,8 +1530,12 @@ namespace LabAutomationElement
                 }
                 if (str2.Contains("×"))
                 {
-                    string[] str = str1.Split("×");
-                    CCC = decimal.Parse(str[0]) * 10 * decimal.Parse(str[1].Replace("10",""));
+                    string[] str = str2.Split("×");
+                    CCC = decimal.Parse(str[0]);
+                    for (int i = 0; i < int.Parse(str[1].Replace("10","")); i++)
+                    {
+                        CCC *= 10;
+                    }
                 }
                 else
                 {
