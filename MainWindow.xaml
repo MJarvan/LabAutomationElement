@@ -60,9 +60,9 @@
                         <StackPanel Margin="5,0,5,0" Grid.Column="5" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                             <Button FontSize="16" HorizontalAlignment="Center" Name="importExcel" Click="importExcel_Click" MouseMove="importExcel_MouseMove">导出Excel</Button>
                         </StackPanel>
-                        <StackPanel Margin="5,0,5,0" Grid.Column="6" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <!--<StackPanel Margin="5,0,5,0" Grid.Column="6" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                             <Button FontSize="16" HorizontalAlignment="Center" Name="importAll" Click="importAll_Click" MouseMove="importExcel_MouseMove">导出模板</Button>
-                        </StackPanel>
+                        </StackPanel>-->
                     </Grid>
                 </StackPanel>
             </Grid>

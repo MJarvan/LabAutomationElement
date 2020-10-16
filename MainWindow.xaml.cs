@@ -84,8 +84,8 @@ namespace LabAutomationElement
         private void AutoLoad()
         {
             string path = AppDomain.CurrentDomain.BaseDirectory;
-            string GSSname = "AutoLoad.xlsx";
-            string fullpath = System.IO.Path.Combine(path,GSSname);
+            string ExcelName = "AutoLoad.xlsx";
+            string fullpath = System.IO.Path.Combine(path,ExcelName);
             IWorkbook workbook = null;
             if (File.Exists(fullpath))
             {
@@ -103,52 +103,77 @@ namespace LabAutomationElement
                     }
                     if (workbook != null)
                     {
-                        ISheet sheet = workbook.GetSheetAt(0);//读取第一个sheet，当然也可以循环读取每个sheet
-                        for (int i = 0; i < sheet.LastRowNum; i++)
+                        for (int i = 0; i < workbook.NumberOfSheets; i++)
                         {
-                            IRow row = sheet.GetRow(i);
-                            //先添加表头做成datatable
-                            if (i == 0)
+                            ISheet sheet = workbook.GetSheetAt(i);
+                            //初始化GSS
+                            if (sheet.SheetName.Contains("GSS"))
                             {
-                                for (int j = 1; j < row.LastCellNum; j++)
+                                for (int j = 0; j < sheet.LastRowNum; j++)
                                 {
-                                    ICell cell = row.GetCell(j);
-                                    if (cell != null)
+                                    IRow row = sheet.GetRow(j);
+                                    //先添加表头做成datatable
+                                    if (j == 0)
                                     {
-                                        string elementName = cell.StringCellValue;
-                                        DataTable GSSDataTable = new DataTable();
-                                        GSSDataTable.TableName = elementName;
-                                        GSSDataTable.Columns.Add("GSSName");
-                                        GSSDataTable.Columns.Add("max");
-                                        GSSDataTable.Columns.Add("min");
-                                        GSSDataTable.Columns.Add("displayName");
-                                        GSSDataSet.Tables.Add(GSSDataTable);
+                                        for (int k = 1; k < row.LastCellNum; k++)
+                                        {
+                                            ICell cell = row.GetCell(k);
+                                            if (cell != null)
+                                            {
+                                                string elementName = cell.StringCellValue;
+                                                DataTable GSSDataTable = new DataTable();
+                                                GSSDataTable.TableName = elementName;
+                                                GSSDataTable.Columns.Add("GSSName");
+                                                GSSDataTable.Columns.Add("max");
+                                                GSSDataTable.Columns.Add("min");
+                                                GSSDataTable.Columns.Add("displayName");
+                                                GSSDataSet.Tables.Add(GSSDataTable);
+                                            }
+                                        }
+                                    }
+                                    //把剩下数据转换成datatable的内容
+                                    else
+                                    {
+                                        for (int k = 1; k < row.LastCellNum; k++)
+                                        {
+                                            ICell firstCell = row.GetCell(0);
+                                            ICell cell = row.GetCell(k);
+                                            if (cell != null && cell.StringCellValue != string.Empty)
+                                            {
+                                                {
+                                                    string GSSName = firstCell.StringCellValue;
+                                                    string displayName = cell.StringCellValue;
+                                                    string[] str = displayName.Split("±");
+                                                    decimal max = decimal.Parse(str[0]) + decimal.Parse(str[1]);
+                                                    decimal min = decimal.Parse(str[0]) - decimal.Parse(str[1]);
+                                                    DataTable dataTable = GSSDataSet.Tables[k - 1];
+                                                    DataRow dr = dataTable.NewRow();
+                                                    dr["GSSName"] = GSSName;
+                                                    dr["max"] = max;
+                                                    dr["min"] = min;
+                                                    dr["displayName"] = displayName;
+                                                    dataTable.Rows.Add(dr);
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
-                            //把剩下数据转换成datatable的内容
+                            //初始化检出限
                             else
                             {
-                                for (int j = 1; j < row.LastCellNum; j++)
+                                IRow firstrow = sheet.GetRow(0);
+                                IRow secondrow = sheet.GetRow(1);
+                                if (firstrow.LastCellNum == secondrow.LastCellNum)
                                 {
-                                    ICell firstCell = row.GetCell(0);
-                                    ICell cell = row.GetCell(j);
-                                    if (cell != null && cell.StringCellValue != string.Empty)
+                                    for (int j = 1; j < firstrow.LastCellNum; j++)
                                     {
-                                        {
-                                            string GSSName = firstCell.StringCellValue;
-                                            string displayName = cell.StringCellValue;
-                                            string[] str = displayName.Split("±");
-                                            decimal max = decimal.Parse(str[0]) + decimal.Parse(str[1]);
-                                            decimal min = decimal.Parse(str[0]) - decimal.Parse(str[1]);
-                                            DataTable dataTable = GSSDataSet.Tables[j - 1];
-                                            DataRow dr = dataTable.NewRow();
-                                            dr["GSSName"] = GSSName;
-                                            dr["max"] = max;
-                                            dr["min"] = min;
-                                            dr["displayName"] = displayName;
-                                            dataTable.Rows.Add(dr);
-                                        }
+                                        ICell keyCell = firstrow.GetCell(j);
+                                        ICell valueCell = secondrow.GetCell(j);
+                                        string key = keyCell.StringCellValue;
+                                        string value = valueCell.NumericCellValue.ToString();
+                                        KeyValuePair<string,string> keyValuePair = new KeyValuePair<string,string>(key,value);
+                                        preCompoundsNameList.Add(keyValuePair);
                                     }
                                 }
                             }
@@ -196,7 +221,8 @@ namespace LabAutomationElement
                 if (int.Parse(scrollViewer.Tag.ToString()) == 0)
                 {
                     //导入模板
-                    CreateTemplate(paths[0]);
+                    //CreateTemplate(paths[0]);
+                    DeleteSameSample(paths[0]);
                 }
                 else if (int.Parse(scrollViewer.Tag.ToString()) == 1)
                 {
@@ -205,6 +231,121 @@ namespace LabAutomationElement
                 }
             }
             e.Handled = true;
+        }
+        
+        /// <summary>
+        /// 上机数据提取
+        /// </summary>
+        /// <param name="path"></param>
+        private void DeleteSameSample(string path)
+        {
+            IWorkbook workbook = null;
+            if (File.Exists(path))
+            {
+                using (FileStream fs = File.OpenRead(path))
+                {
+                    // 2007版本
+                    if (path.Contains(".xlsx"))
+                    {
+                        workbook = new XSSFWorkbook(fs);
+                    }
+                    // 2003版本
+                    else if (path.Contains(".xls"))
+                    {
+                        workbook = new HSSFWorkbook(fs);
+                    }
+                    if (workbook != null)
+                    {
+                        ISheet sheet = workbook.GetSheetAt(0);//读取第一个sheet，当然也可以循环读取每个sheet
+                        DataTable dataTable = new DataTable();
+                        int lastNum = sheet.GetRow(0).LastCellNum;
+                        for (int i = 0; i < sheet.LastRowNum; i++)
+                        {
+                            IRow row = sheet.GetRow(i);
+                            if (i == 0)
+                            {
+                                for (int j = 0; j < row.LastCellNum; j++)
+                                {
+                                    ICell cell = row.GetCell(j);
+                                    dataTable.Columns.Add(cell.StringCellValue);
+                                }
+                            }
+                            else
+                            {
+                                DataRow dr = dataTable.NewRow();
+                                dr.ItemArray = row.ToArray();
+                                if (dr[lastNum - 1].ToString().Trim() != string.Empty)
+                                {
+                                    dataTable.Rows.Add(dr);
+                                }
+                            }
+                        }
+                        List<DataRow> dataRows = new List<DataRow>();
+                        DataRow lastRow;
+                        for (int i = 1; i < dataTable.Rows.Count; i++)
+                        {
+                            lastRow = dataTable.Rows[i - 1];
+                            DataRow dr = dataTable.Rows[i];
+                            if (lastRow[0] == dr[0])
+                            {
+                                dataRows.Add(lastRow);
+                            }
+                        }
+
+                        foreach (DataRow dataRow in dataRows)
+                        {
+                            dataTable.Rows.Remove(dataRow);
+                            dataTable.AcceptChanges();
+                        }
+
+                        FileInfo fileInfo = new FileInfo(path);
+                        string filename = fileInfo.Name.Split(".")[0] + "-新.xls";
+                        string fullpath = System.IO.Path.Combine(fileInfo.DirectoryName,filename);
+                        var newworkbook = new HSSFWorkbook();
+                        var newsheet = newworkbook.CreateSheet(fileInfo.Name.Split(".")[0]);
+                        newsheet.ForceFormulaRecalculation = true;
+                        for (int i = 0; i < dataTable.Rows.Count + 1; i++)
+                        {
+                            IRow row = newsheet.CreateRow(i);
+                            for (int j = 0; j < dataTable.Columns.Count; j++)
+                            {
+                                ICell cell = row.CreateCell(j);
+                                string value = string.Empty;
+                                if (i == 0)
+                                {
+                                    value = dataTable.Columns[j].ColumnName;
+                                }
+                                else
+                                {
+                                    value = dataTable.Rows[i - 1][j].ToString();
+                                }
+                                cell.SetCellValue(value);
+                            }
+                        }
+
+                        //自动调整列距
+                        for (int i = 0; i < dataTable.Columns.Count; i++)
+                        {
+                            newsheet.AutoSizeColumn(i);
+                        }
+
+                        if (File.Exists(fullpath))
+                        {
+                            File.Delete(fullpath);
+                        }
+                        using (FileStream stream = new FileStream(fullpath,FileMode.OpenOrCreate,FileAccess.ReadWrite))
+                        {
+                            newworkbook.Write(stream);
+                            stream.Flush();
+                        }
+                        Process process = new Process();
+                        ProcessStartInfo processStartInfo = new ProcessStartInfo(fullpath);
+                        processStartInfo.UseShellExecute = true;
+                        process.StartInfo = processStartInfo;
+                        process.Start();
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -291,54 +432,6 @@ namespace LabAutomationElement
                             {
                                 comboBoxItem.IsSelected = true;
                             }
-                        }
-                    }
-                    //加载元素项
-                    else if (value.Contains("GSS"))
-                    {
-                        if (maingrid.Children.Count > 0)
-                        {
-                            TabControl tabControl = maingrid.Children[0] as TabControl;
-                            foreach (TabItem tabItem in tabControl.Items)
-                            {
-                                StackPanel stackPanel = tabItem.Header as StackPanel;
-                                Label label = stackPanel.Children[1] as Label;
-                                TextBox textBox = stackPanel.Children[2] as TextBox;
-                                if (label.Content.ToString() == key)
-                                {
-                                    Grid grid = tabItem.Content as Grid;
-                                    StackPanel fatherSP = grid.Children[1] as StackPanel;
-                                    fatherSP.Children.Add(CreateInnerStackPanel(key,value));
-                                }
-                            }
-                        }
-                        else
-                        {
-                            KeyValuePair<string,string> keyValuePair = new KeyValuePair<string,string>(key,value);
-                            //preCompoundsNameList.Add(keyValuePair);
-                        }
-                    }
-                    else
-                    {
-                        //有没有添加元素的文档
-                        if (maingrid.Children.Count > 0)
-                        {
-                            TabControl tabControl = maingrid.Children[0] as TabControl;
-                            foreach (TabItem tabItem in tabControl.Items)
-                            {
-                                StackPanel stackPanel = tabItem.Header as StackPanel;
-                                Label label = stackPanel.Children[1] as Label;
-                                TextBox textBox = stackPanel.Children[2] as TextBox;
-                                if (label.Content.ToString() == key)
-                                {
-                                    textBox.Text = value;
-                                }
-                            }
-                        }
-                        else
-                        {
-                            KeyValuePair<string,string> keyValuePair = new KeyValuePair<string,string>(key,value);
-                            preCompoundsNameList.Add(keyValuePair);
                         }
                     }
                 }
@@ -432,7 +525,7 @@ namespace LabAutomationElement
                 skipNum = 1;
                 GraphiteDataSet.Tables.Add(dataTable);
             }
-            compoundName = compoundName.Remove(0,2);
+            string newcompoundName = compoundName.Remove(0,2);
 
             for (int i = 1; i <= rowCount; i++)
             {
@@ -513,7 +606,7 @@ namespace LabAutomationElement
                     sampleNameList.Add(dataTable.Rows[l][0].ToString());
                 }
             }*/
-            AddParallelSamplesToList(dataTable);
+            List<string> gssList = AddParallelSamplesToList(dataTable);
 
             TabItem tabItem = new TabItem();
             //tabItem.Header = name[1] + " | " + name[2];
@@ -521,11 +614,26 @@ namespace LabAutomationElement
             tabItem.Header = headerSP;
             //GSS
             StackPanel stackPanel = new StackPanel();
-            stackPanel.Tag = compoundName;
+            stackPanel.Tag = newcompoundName;
             stackPanel.Orientation = Orientation.Vertical;
             stackPanel.VerticalAlignment = System.Windows.VerticalAlignment.Center;
             stackPanel.HorizontalAlignment = System.Windows.HorizontalAlignment.Center;
-            stackPanel.Children.Add(CreateInnerStackPanel(compoundName,string.Empty));
+            if (gssList.Count > 0)
+            {
+                foreach (string gssName in gssList)
+                {
+                    for (int i = 0; i < dataTable.Rows.Count; i++)
+                    {
+                        string value = dataTable.Rows[i][0].ToString();
+                        if (gssName == value)
+                        {
+                            stackPanel.Children.Add(CreateInnerStackPanel(newcompoundName,gssName));
+                        }
+                    }
+                }
+            }
+            stackPanel.Children.Add(CreateInnerStackPanel(newcompoundName,string.Empty));
+
             //元素
             DataGrid datagrid = new DataGrid();
             datagrid.Name = "dataGrid";
@@ -561,7 +669,10 @@ namespace LabAutomationElement
             CheckBox checkBox = new CheckBox();
             checkBox.HorizontalContentAlignment = System.Windows.HorizontalAlignment.Center;
             checkBox.HorizontalAlignment = System.Windows.HorizontalAlignment.Center;
-            checkBox.Checked += CheckBox_Checked;
+            if (GSSName == string.Empty)
+            {
+                checkBox.Checked += CheckBox_Checked;
+            }
             checkBox.Margin = new Thickness(5,5,5,5);
             ComboBox comboBox = new ComboBox();
             comboBox.Width = 100;
@@ -660,7 +771,7 @@ namespace LabAutomationElement
             numLabel.HorizontalAlignment = System.Windows.HorizontalAlignment.Center;
 
             Label compoundslabel = new Label();
-            compoundslabel.Content = compoundsName;
+            compoundslabel.Content = compoundsName.Remove(0,2);
             compoundslabel.HorizontalContentAlignment = System.Windows.HorizontalAlignment.Center;
             compoundslabel.HorizontalAlignment = System.Windows.HorizontalAlignment.Center;
             TextBox textBox = new TextBox();
@@ -725,10 +836,12 @@ namespace LabAutomationElement
         }
 
         /// <summary>
-        /// 添加平行样
+        /// 添加平行样,返回GSS
         /// </summary>
-        private void AddParallelSamplesToList(DataTable dataTable)
+        private List<string> AddParallelSamplesToList(DataTable dataTable)
         {
+            List<string> vs = new List<string>();
+
             //由于只有竖表不用分组
             for (int i = 0; i < dataTable.Rows.Count - 1; i++)
             {
@@ -742,9 +855,15 @@ namespace LabAutomationElement
                     dataRow[3] = "/";
                     dataRow[4] = "/";
                     dataRow[5] = "/";
-                    dataTable.Rows.InsertAt(dataRow,i + 1);
+                    dataTable.Rows.InsertAt(dataRow,i + 1);                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
+                }
+                else if (value.Contains("GSS"))
+                {
+                    vs.Add(value);
                 }
             }
+
+            return vs;
         }
 
 
@@ -1312,7 +1431,9 @@ namespace LabAutomationElement
                 }
 
                 decimal onenum = decimal.Parse(oneNum);
-                returnnum = (testNum / onenum).ToString() + "×" + "10" + (testNum.ToString().Length - 1).ToString();
+                decimal finalnum = Math.Round(testNum/onenum,2,MidpointRounding.ToEven);
+                string finalvalue = CalculateAccuracyCX(finalnum.ToString(),2);
+                returnnum = finalvalue + "×" + "10" + (testNum.ToString().Length - 1).ToString();
             }
             return returnnum;
         }
@@ -1624,12 +1745,12 @@ namespace LabAutomationElement
                                     {
                                         string[] str = max.ToString().Split(".");
                                         int num = str[1].Length;
-                                        C = Math.Round(C,num,MidpointRounding.AwayFromZero);
+                                        C = Math.Round(C,num,MidpointRounding.ToEven);
                                         realC = C.ToString();
                                     }
                                     else
                                     {
-                                        C = Math.Round(C,0,MidpointRounding.AwayFromZero);
+                                        C = Math.Round(C,0,MidpointRounding.ToEven);
                                         realC = C.ToString();
                                     }
                                     if (C <= max && C >= min)
@@ -1806,12 +1927,12 @@ namespace LabAutomationElement
             double num = double.Parse(value);
             if (num > -10 && num < 10)
             {
-                num = Math.Round(num,3,MidpointRounding.ToEven);
+                num = Math.Round(num,3,MidpointRounding.AwayFromZero);
                 value = CalculateAccuracyCX(num.ToString(),3);
             }
             else if (num > -100 && num < 100)
             {
-                num = Math.Round(num,2,MidpointRounding.ToEven);
+                num = Math.Round(num,2,MidpointRounding.AwayFromZero);
                 value = CalculateAccuracyCX(num.ToString(),2);
             }
             return value;
@@ -1835,7 +1956,7 @@ namespace LabAutomationElement
             else
             {
                 num *= 100;
-                num = Math.Round(num,1,MidpointRounding.AwayFromZero);
+                num = Math.Round(num,1,MidpointRounding.ToEven);
                 value = num.ToString() + "%";
             }
 
@@ -1904,21 +2025,21 @@ namespace LabAutomationElement
                         string modelC = keyValuePair.Value;
                         string[] numC = modelC.Split(".");
                         int numModelC = numC[1].Length;
-                        C = Math.Round(C,numModelC,MidpointRounding.AwayFromZero);
+                        C = Math.Round(C,numModelC,MidpointRounding.ToEven);
                     }
                 }
             }
             else if (C >= 10 && C < 100)
             {
-                C = Math.Round(C,1,MidpointRounding.AwayFromZero);
+                C = Math.Round(C,1,MidpointRounding.ToEven);
             }
             else if (C >= 100 && C < 1000)
             {
-                C = Math.Round(C,0,MidpointRounding.AwayFromZero);
+                C = Math.Round(C,0,MidpointRounding.ToEven);
             }
             else if (C > 1000)
             {
-                C = Math.Round(C,0,MidpointRounding.AwayFromZero);
+                C = Math.Round(C,0,MidpointRounding.ToEven);
                 string scientfiC = ScientificCounting(C);
                 return scientfiC;
             }
@@ -1935,7 +2056,7 @@ namespace LabAutomationElement
         private string FireCalculateAccuracyC(string value)
         {
             decimal C = decimal.Parse(value);
-            C = Math.Round(C,0,MidpointRounding.AwayFromZero);
+            C = Math.Round(C,0,MidpointRounding.ToEven);
             if (C > 1000)
             {
                 string scientfiC = ScientificCounting(C);
@@ -1973,17 +2094,6 @@ namespace LabAutomationElement
                     streamWriter.WriteLine(AccuracyLabel.Content + AccuracyComboBox.Text);
                     streamWriter.WriteLine(FormulaLabel.Content + FormulaComboBox.Text);
                     streamWriter.WriteLine(testJCRadioButton.Content + "：" + ZDJCCompanyComboBox.Text);
-
-                    foreach (KeyValuePair<string,string> keyValuePair in compoundsNameList)
-                    {
-                        streamWriter.WriteLine(keyValuePair.Key + "：" + keyValuePair.Value);
-                    }
-
-                    foreach (KeyValuePair<string,string> keyValuePair in GSSNameList)
-                    {
-                        streamWriter.WriteLine(keyValuePair.Key + "：" + keyValuePair.Value);
-                    }
-
                     streamWriter.Flush();
                     stream.Flush();
                 }
