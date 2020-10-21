@@ -109,7 +109,7 @@ namespace LabAutomationElement
                             //初始化GSS
                             if (sheet.SheetName.Contains("GSS"))
                             {
-                                for (int j = 0; j < sheet.LastRowNum; j++)
+                                for (int j = 0; j <= sheet.LastRowNum; j++)
                                 {
                                     IRow row = sheet.GetRow(j);
                                     //先添加表头做成datatable
@@ -259,7 +259,7 @@ namespace LabAutomationElement
                         ISheet sheet = workbook.GetSheetAt(0);//读取第一个sheet，当然也可以循环读取每个sheet
                         DataTable dataTable = new DataTable();
                         int lastNum = sheet.GetRow(0).LastCellNum;
-                        for (int i = 0; i < sheet.LastRowNum; i++)
+                        for (int i = 0; i <= sheet.LastRowNum; i++)
                         {
                             IRow row = sheet.GetRow(i);
                             if (i == 0)
@@ -302,7 +302,7 @@ namespace LabAutomationElement
                         string filename = fileInfo.Name.Split(".")[0] + "-新.xls";
                         string fullpath = System.IO.Path.Combine(fileInfo.DirectoryName,filename);
                         var newworkbook = new HSSFWorkbook();
-                        var newsheet = newworkbook.CreateSheet(fileInfo.Name.Split(".")[0]);
+                        var newsheet = newworkbook.CreateSheet(sheet.SheetName);
                         newsheet.ForceFormulaRecalculation = true;
                         for (int i = 0; i < dataTable.Rows.Count + 1; i++)
                         {
@@ -843,7 +843,7 @@ namespace LabAutomationElement
             List<string> vs = new List<string>();
 
             //由于只有竖表不用分组
-            for (int i = 0; i < dataTable.Rows.Count - 1; i++)
+            for (int i = 0; i < dataTable.Rows.Count; i++)
             {
                 string value = dataTable.Rows[i]["样品编号"].ToString();
                 if (value.Contains("Dup"))
@@ -1935,6 +1935,11 @@ namespace LabAutomationElement
                 num = Math.Round(num,2,MidpointRounding.AwayFromZero);
                 value = CalculateAccuracyCX(num.ToString(),2);
             }
+            else if (num >= 100)
+            {
+                num = Math.Round(num,0,MidpointRounding.AwayFromZero);
+                value = num.ToString();
+            }
             return value;
         }
 
@@ -1952,6 +1957,10 @@ namespace LabAutomationElement
             {
                 num *= 100;
                 value = num.ToString() + "%";
+            }
+            else if (num == 0)
+            {
+                value = CalculateAccuracyCX(value,1) + "%";
             }
             else
             {
