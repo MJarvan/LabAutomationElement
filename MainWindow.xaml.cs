@@ -689,7 +689,7 @@ namespace LabAutomationElement
                     {
                         ComboBoxItem cbi = new ComboBoxItem();
                         cbi.Content = dataTable.Rows[i][0].ToString();
-                        if (GSSName == cbi.Content.ToString())
+                        if (GSSName.Contains(cbi.Content.ToString()))
                         {
                             checkBox.IsChecked = true;
                             cbi.IsSelected = true;
@@ -1567,11 +1567,23 @@ namespace LabAutomationElement
                         {
                             foreach (DataRow dr in dataTable.Rows)
                             {
-                                if (dr[0].ToString() == sampleName)
+                                if (sampleName.Contains(dr[0].ToString()))
                                 {
                                     decimal max = decimal.Parse(dr[1].ToString());
                                     decimal min = decimal.Parse(dr[2].ToString());
-                                    string realC = FireCalculateAccuracyC(C.ToString());
+                                    string realC;
+                                    if (max.ToString().Contains("."))
+                                    {
+                                        string[] str = max.ToString().Split(".");
+                                        int num = str[1].Length;
+                                        C = Math.Round(C,num,MidpointRounding.ToEven);
+                                        realC = C.ToString();
+                                    }
+                                    else
+                                    {
+                                        C = Math.Round(C,0,MidpointRounding.ToEven);
+                                        realC = C.ToString();
+                                    }
                                     if (C <= max && C >= min)
                                     {
                                         //偷懒
@@ -1736,11 +1748,11 @@ namespace LabAutomationElement
                         {
                             foreach (DataRow dr in dataTable.Rows)
                             {
-                                if (dr[0].ToString() == sampleName)
+                                if (sampleName.Contains(dr[0].ToString()))
                                 {
                                     decimal max = decimal.Parse(dr[1].ToString());
                                     decimal min = decimal.Parse(dr[2].ToString());
-                                    string realC = GrapCalculateAccuracyC(C.ToString(),sheet.SheetName);
+                                    string realC;
                                     if (max.ToString().Contains("."))
                                     {
                                         string[] str = max.ToString().Split(".");
@@ -1935,7 +1947,12 @@ namespace LabAutomationElement
                 num = Math.Round(num,2,MidpointRounding.AwayFromZero);
                 value = CalculateAccuracyCX(num.ToString(),2);
             }
-            else if (num >= 100)
+            else if (num >= 100 && num < 1000)
+            {
+                num = Math.Round(num,1,MidpointRounding.AwayFromZero);
+                value = CalculateAccuracyCX(num.ToString(),1);
+            }
+            else if (num >= 1000)
             {
                 num = Math.Round(num,0,MidpointRounding.AwayFromZero);
                 value = num.ToString();
