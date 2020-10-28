@@ -922,7 +922,6 @@ namespace LabAutomationElement
             {
                 string compoundsName = string.Empty;
                 string modelC = string.Empty;
-                string GSSName = string.Empty;
                 StackPanel stackPanel = tabItem.Header as StackPanel;
                 foreach (var item in stackPanel.Children)
                 {
@@ -948,7 +947,7 @@ namespace LabAutomationElement
                     ComboBox comboBox = GSS.Children[1] as ComboBox;
                     if (checkBox.IsChecked == true && comboBox.Text != null && comboBox.Text != "" && comboBox.Text != string.Empty)
                     {
-                        GSSName = comboBox.Text;
+                        string GSSName = comboBox.Text;
                         KeyValuePair<string,string> kv2 = new KeyValuePair<string,string>(compoundsName,GSSName);
                         GSSNameList.Add(kv2);
                     }
@@ -956,7 +955,7 @@ namespace LabAutomationElement
                 KeyValuePair<string,string> kv1 = new KeyValuePair<string,string>(compoundsName,modelC);
                 compoundsNameList.Add(kv1);
             }
-
+            GSSNameList = GSSNameList.Distinct().ToList();
             //if (compoundsNameList.Count > 2)
             //{
             //    KeyValuePair<string,string> keyValuePair = new KeyValuePair<string,string>("以下空白",string.Empty);
