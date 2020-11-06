@@ -1257,7 +1257,11 @@ namespace LabAutomationElement
                                     string value = string.Empty;
                                     string sampleName = row.GetCell(1).StringCellValue;
                                     //计算精度函数
-                                    if (FiresDataSet.Tables.Contains(datatable.TableName))
+                                    if (sampleName.ToUpper().Contains("MS"))
+                                    {
+                                        value = "ND";
+                                    }
+                                    else if (FiresDataSet.Tables.Contains(datatable.TableName))
                                     {
                                         value = FireCompareCompoundWithFormula(row);
                                     }
@@ -1438,7 +1442,7 @@ namespace LabAutomationElement
         }
 
         /// <summary>
-        /// 
+        /// 火焰法计算浓度
         /// </summary>
         /// <param name="c1"></param>
         /// <param name="sampleName"></param>
@@ -1606,7 +1610,16 @@ namespace LabAutomationElement
                         string modelC = keyValuePair.Value;
                         if (C > decimal.Parse(modelC))
                         {
-                            string realC = FireCalculateAccuracyC(C.ToString());
+
+                            string realC = string.Empty;
+                            if (modelC.Contains("."))
+                            {
+                                realC= FireCalculateAccuracymodelC(C.ToString(),modelC);
+                            }
+                            else
+                            {
+                                realC = FireCalculateAccuracyC(C.ToString());
+                            }
                             return realC;
                         }
                     }
@@ -1617,7 +1630,7 @@ namespace LabAutomationElement
         }
 
         /// <summary>
-        /// 计算目标化合物浓度
+        /// 石墨法计算目标化合物浓度
         /// </summary>
         /// <param name="sampleName"></param>
         /// <returns></returns>
@@ -2075,6 +2088,22 @@ namespace LabAutomationElement
 
         /// <summary>
         /// C小数位数精度计算
+        /// </summary>
+        /// <param name="C"></param>
+        /// <returns></returns>
+        private string FireCalculateAccuracymodelC(string value,string modelC)
+        {
+            decimal C = decimal.Parse(value);
+            string[] numC = modelC.Split(".");
+            int numModelC = numC[1].Length;
+            C = Math.Round(C,numModelC,MidpointRounding.ToEven);
+            string realC = C.ToString();
+            return realC;
+        }
+
+
+        /// <summary>
+        /// 火焰法C
         /// </summary>
         /// <param name="C"></param>
         /// <returns></returns>
