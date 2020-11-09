@@ -1255,6 +1255,7 @@ namespace LabAutomationElement
                                 {
                                     //土壤样品浓度C
                                     string value = string.Empty;
+
                                     string sampleName = row.GetCell(1).StringCellValue;
                                     //计算精度函数
                                     if (sampleName.ToUpper().Contains("MS"))
