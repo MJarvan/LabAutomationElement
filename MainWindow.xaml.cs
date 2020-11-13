@@ -1240,6 +1240,17 @@ namespace LabAutomationElement
                                     cell.SetCellValue(value);
                                     break;
                                 }
+                            case 5:
+                                {
+                                    //样品体积V（mL）
+                                    string value = datatable.Rows[i][j - 2].ToString();
+                                    if (!value.Contains("/"))
+                                    {
+                                        value = CalculateAccuracyCX(value,1);
+                                    }
+                                    cell.SetCellValue(value);
+                                    break;
+                                }
                             case 7:
                                 {
                                     //试样浓度C1
@@ -1260,7 +1271,7 @@ namespace LabAutomationElement
                                     //计算精度函数
                                     if (sampleName.ToUpper().Contains("MS"))
                                     {
-                                        value = "ND";
+                                        value = "/";
                                     }
                                     else if (FiresDataSet.Tables.Contains(datatable.TableName))
                                     {
