@@ -60,6 +60,11 @@ namespace LabAutomationElement
         /// </summary>
         DataSet GraphiteDataSet = new DataSet();
 
+        /// <summary>
+        /// 判断底泥标志
+        /// </summary>
+        bool judgeDN = false;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -501,6 +506,7 @@ namespace LabAutomationElement
         /// </summary>
         private void AllClear()
         {
+            judgeDN = false;
             compoundsNameList.Clear();
             ReportNo = string.Empty;
             ReportNoLabel.Content = ReportNo;
@@ -508,6 +514,7 @@ namespace LabAutomationElement
             GraphiteDataSet.Tables.Clear();
             maingrid.Children.Clear();
         }
+
 
         private void CreateDataTable(TabControl tabControl,ISheet sheet,DataTable dataTable,int compoundsNum,int keyValueNum)
         {
@@ -584,8 +591,6 @@ namespace LabAutomationElement
                 }
             }
 
-            //删掉火焰石墨不要的列
-            dataTable.Columns.RemoveAt(skipNum);
             //删掉每个元素浓度为空的行
             for (int i = dataTable.Rows.Count -1; i >=0; i--)
             {
@@ -594,7 +599,16 @@ namespace LabAutomationElement
                 {
                     dataTable.Rows.RemoveAt(i);
                 }
+                //判断是否有底泥
+                string judgeStr = dataTable.Rows[i]["试样识别码"].ToString();
+                if (judgeStr.Contains("DN"))
+                {
+                    judgeDN = true;
+                    skipNum = 1;
+                }
             }
+            //删掉火焰石墨不要的列
+            dataTable.Columns.RemoveAt(skipNum);
             //把样品名称调到最开始
             dataTable.Columns[dataTable.Columns.Count - 2].SetOrdinal(0);
             dataTable.Columns[0].ColumnName = "样品编号";
@@ -1243,11 +1257,18 @@ namespace LabAutomationElement
                             case 5:
                                 {
                                     //样品体积V（mL）
+                                    ICell nameCell = row.GetCell(1);
+                                    string name = nameCell.StringCellValue;
                                     string value = datatable.Rows[i][j - 2].ToString();
+                                    if (name.Contains("CCV") || name.Contains("零点"))
+                                    {
+                                        value = "/";
+                                    }
                                     if (!value.Contains("/"))
                                     {
                                         value = CalculateAccuracyCX(value,1);
                                     }
+
                                     cell.SetCellValue(value);
                                     break;
                                 }
@@ -1468,6 +1489,14 @@ namespace LabAutomationElement
             {
                 return "/";
             }
+            string modelC = string.Empty;
+            foreach (KeyValuePair<string,string> keyValuePair in compoundsNameList)
+            {
+                if (keyValuePair.Key == sheet.SheetName)
+                {
+                    modelC = keyValuePair.Value;
+                }
+            }
             if (sampleName.Contains("平均"))
             {
                 int num = row.RowNum;
@@ -1509,15 +1538,26 @@ namespace LabAutomationElement
                 }
                 //平均要把科学计数法变回正常数
                 decimal C = (CC + CCC) / 2;
-                string realC = FireCalculateAccuracyC(C.ToString());
-                return realC;
+                if (C > decimal.Parse(modelC))
+                {
+
+                    string realC;
+                    if (modelC.Contains("."))
+                    {
+                        realC = FireCalculateAccuracymodelC(C.ToString(),modelC);
+                    }
+                    else
+                    {
+                        realC = FireCalculateAccuracyC(C.ToString());
+                    }
+                    return realC;
+                }
             }
             else
             {
                 //试样浓度C1
                 decimal C1 = decimal.Zero;
                 if (row.GetCell(7).StringCellValue.Contains("/"))
-  
                 {
                     C1 = 1;
                 }
@@ -1547,13 +1587,26 @@ namespace LabAutomationElement
                 }
                 //干物质含量Wdm
                 decimal Wdm = decimal.Zero;
+                decimal WH2O = decimal.Zero;
                 if (row.GetCell(4).StringCellValue.Contains("/"))
                 {
                     Wdm = 1;
+                    WH2O = 0;
                 }
                 else
                 {
-                    Wdm = decimal.Parse(row.GetCell(4).StringCellValue.Replace("%","")) / 100;
+
+                    decimal value = decimal.Parse(row.GetCell(4).StringCellValue.Replace("%",""));
+                    if (value != 0)
+                    {
+                        Wdm = value / 100;
+                        WH2O = value / 100;
+                    }
+                    else
+                    {
+                        Wdm = value;
+                        WH2O = value;
+                    }
                 }
                 //样品重量W
                 decimal W = decimal.Zero;
@@ -1571,7 +1624,20 @@ namespace LabAutomationElement
                 decimal FireC1 = decimal.Parse((FireComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
                 decimal ZDJCC = decimal.Parse((ZDJCCompanyComboBox.SelectedItem as ComboBoxItem).Tag.ToString());
                 decimal l = moleculeV * FireC1 * (ZDJCC / denominatorW);
-                decimal C = ((C1 * K * V) / (W * Wdm)) * l;
+                decimal C = decimal.Zero;
+
+                if (sampleName.Contains("MB"))
+                {
+                    C = C1 * K * V * l;
+                }
+                else if (judgeDN)
+                {
+                    C = (C1 * K * V) / (W * (1 - WH2O));
+                }
+                else
+                {
+                    C = ((C1 * K * V) / (W * Wdm)) * l;
+                }
 
                 if (sampleName.Contains("GSS"))
                 {
@@ -1613,28 +1679,19 @@ namespace LabAutomationElement
                         }
                     }
                 }
-
-
-                foreach (KeyValuePair<string,string> keyValuePair in compoundsNameList)
+                if (C > decimal.Parse(modelC))
                 {
-                    if (keyValuePair.Key == sheet.SheetName)
-                    {
-                        string modelC = keyValuePair.Value;
-                        if (C > decimal.Parse(modelC))
-                        {
 
-                            string realC = string.Empty;
-                            if (modelC.Contains("."))
-                            {
-                                realC= FireCalculateAccuracymodelC(C.ToString(),modelC);
-                            }
-                            else
-                            {
-                                realC = FireCalculateAccuracyC(C.ToString());
-                            }
-                            return realC;
-                        }
+                    string realC;
+                    if (modelC.Contains("."))
+                    {
+                        realC = FireCalculateAccuracymodelC(C.ToString(),modelC);
                     }
+                    else
+                    {
+                        realC = FireCalculateAccuracyC(C.ToString());
+                    }
+                    return realC;
                 }
             }
 
@@ -1703,6 +1760,7 @@ namespace LabAutomationElement
                 string realC = GrapCalculateAccuracyC(C.ToString(),sheet.SheetName);
                 return realC;
             }
+            
             else
             {
                 //试样浓度C1
@@ -1802,6 +1860,10 @@ namespace LabAutomationElement
                             }
                         }
                     }
+                }
+                else if (sampleName.Contains("MB"))
+                {
+                    C = C1 * K * V * l;
                 }
 
                 foreach (KeyValuePair<string,string> keyValuePair in compoundsNameList)
