@@ -111,6 +111,7 @@
                         <ComboBox VerticalAlignment="Center" MinWidth="50" Name="FormulaComboBox" Visibility="Collapsed">
                             <ComboBoxItem Content="C=C1×K×V/W×Wdm" IsSelected="True"></ComboBoxItem>
                             <ComboBoxItem Content="C=C1×K×V/W×(1-f)×10-3" ></ComboBoxItem>
+                            <ComboBoxItem Content="C=(C1×K×V)/(W×(1-WH2O))" ></ComboBoxItem>
                             <!--<ComboBoxItem Content="X = Ci * f * (V1 / V) * (1/1000)"></ComboBoxItem>-->
                         </ComboBox>
                         <!--<RadioButton Name="testZDRadioButton" Margin="10,0,10,0" IsChecked="True" HorizontalAlignment="Center" VerticalAlignment="Center">最低检测质量浓度</RadioButton>-->

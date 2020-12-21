@@ -1071,8 +1071,21 @@ namespace LabAutomationElement
                             FormulaCell.CellStyle = cellStyle;
                             if (FiresDataSet.Tables.Contains(datatable.TableName))
                             {
-                                ComboBoxItem item = FormulaComboBox.Items[0] as ComboBoxItem;
-                                FormulaCell.SetCellValue(item.Content.ToString());
+                                if (judgeDN)
+                                {
+                                    ComboBoxItem item = FormulaComboBox.Items[2] as ComboBoxItem;
+                                    string value = item.Content.ToString();
+                                    HSSFRichTextString rts = new HSSFRichTextString(value);
+                                    var cellStyleFont = (HSSFFont)workbook.CreateFont(); //创建字体
+                                    cellStyleFont.TypeOffset = FontSuperScript.Sub;//字体上标下标
+                                    rts.ApplyFont(value.Length - 5,value.Length - 2,cellStyleFont);
+                                    FormulaCell.SetCellValue(rts);
+                                }
+                                else
+                                {
+                                    ComboBoxItem item = FormulaComboBox.Items[0] as ComboBoxItem;
+                                    FormulaCell.SetCellValue(item.Content.ToString());
+                                }
                             }
                             else if (GraphiteDataSet.Tables.Contains(datatable.TableName))
                             {
@@ -1457,20 +1470,22 @@ namespace LabAutomationElement
         /// <returns></returns>
         private string ScientificCounting(decimal testNum)
         {
-            string returnnum = string.Empty;
+            string returnnum = testNum.ToString();
+            string[] strNum = returnnum.Split(".");
             string oneNum = "1";
             if (testNum.ToString().Length >= 4)
             {
-                for (int i = 0; i < testNum.ToString().Length - 1; i++)
+                for (int i = 0; i < strNum[0].ToString().Length - 1; i++)
                 {
                     oneNum += "0";
                 }
 
                 decimal onenum = decimal.Parse(oneNum);
-                decimal finalnum = Math.Round(testNum/onenum,2,MidpointRounding.ToEven);
+                decimal finalnum = Math.Round(testNum / onenum,2,MidpointRounding.ToEven);
                 string finalvalue = CalculateAccuracyCX(finalnum.ToString(),2);
-                returnnum = finalvalue + "×" + "10" + (testNum.ToString().Length - 1).ToString();
+                returnnum = finalvalue + "×" + "10" + (strNum[0].ToString().Length - 1).ToString();
             }
+
             return returnnum;
         }
 
@@ -2151,7 +2166,7 @@ namespace LabAutomationElement
             }
             else if (C > 1000)
             {
-                C = Math.Round(C,0,MidpointRounding.ToEven);
+                //C = Math.Round(C,0,MidpointRounding.ToEven);
                 string scientfiC = ScientificCounting(C);
                 return scientfiC;
             }
@@ -2184,11 +2199,15 @@ namespace LabAutomationElement
         private string FireCalculateAccuracyC(string value)
         {
             decimal C = decimal.Parse(value);
-            C = Math.Round(C,0,MidpointRounding.ToEven);
             if (C > 1000)
             {
+                //C = Math.Round(C / 1000,2,MidpointRounding.ToEven);
                 string scientfiC = ScientificCounting(C);
                 return scientfiC;
+            }
+            else
+            {
+                C = Math.Round(C,0,MidpointRounding.ToEven);
             }
 
             string realC = C.ToString();
