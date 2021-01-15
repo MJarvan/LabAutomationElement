@@ -536,6 +536,7 @@ namespace LabAutomationElement
 
             for (int i = 1; i <= rowCount; i++)
             {
+
                 IRow row = sheet.GetRow(i);
                 //由于Excel在非数据区进行了格式设置，那么sheet.LastRowNum 得到的值就会与实际得到的值不符。从而因有非空验证，造成导入失败。
                 //所以直接先判断第一个单元格是否为空，在进行后面的操作
@@ -557,6 +558,7 @@ namespace LabAutomationElement
                             }
                         }
                         dataTable.Columns.Add("浓度");
+                        
                     }
                     //第三行开始是数据
                     else
@@ -564,18 +566,26 @@ namespace LabAutomationElement
                         DataRow dataRow = dataTable.NewRow();
                         for (int k = 0; k < 6; k++)
                         {
-                            ICell cell = row.GetCell(k);
-                            if (cell != null)
+                            try
                             {
-                                if (cell.CellType == CellType.Numeric)
+                                ICell cell = row.GetCell(k);
+                                if (cell != null)
                                 {
-                                    dataRow[k] = cell.NumericCellValue;
-                                }
-                                else
-                                {
-                                    dataRow[k] = cell.StringCellValue.Trim();
+                                    if (cell.CellType == CellType.Numeric)
+                                    {
+                                        dataRow[k] = cell.NumericCellValue;
+                                    }
+                                    else
+                                    {
+                                        dataRow[k] = cell.StringCellValue.Trim();
+                                    }
                                 }
                             }
+                            catch (Exception e)
+                            {
+                                MessageBox.Show("第" + i + "行第" + k + "列的导入出现了问题。");
+                            }
+                            
                         }
                         ICell newCell = row.GetCell(compoundsNum);
                         if (newCell.CellType == CellType.Numeric)
@@ -1302,18 +1312,25 @@ namespace LabAutomationElement
                                     string value = string.Empty;
 
                                     string sampleName = row.GetCell(1).StringCellValue;
-                                    //计算精度函数
-                                    if (sampleName.ToUpper().Contains("MS"))
+                                    try
                                     {
-                                        value = "/";
+                                        //计算精度函数
+                                        if (sampleName.ToUpper().Contains("MS"))
+                                        {
+                                            value = "/";
+                                        }
+                                        else if (FiresDataSet.Tables.Contains(datatable.TableName))
+                                        {
+                                            value = FireCompareCompoundWithFormula(row);
+                                        }
+                                        else if (GraphiteDataSet.Tables.Contains(datatable.TableName))
+                                        {
+                                            value = GrapCompareCompoundWithFormula(row);
+                                        }
                                     }
-                                    else if (FiresDataSet.Tables.Contains(datatable.TableName))
+                                    catch (Exception e)
                                     {
-                                        value = FireCompareCompoundWithFormula(row);
-                                    }
-                                    else if (GraphiteDataSet.Tables.Contains(datatable.TableName))
-                                    {
-                                        value = GrapCompareCompoundWithFormula(row);
+                                        MessageBox.Show("第" + i + "行样品编号为[" + sampleName + "]的数据出现异常，请检查。");
                                     }
                                     //换颜色
                                     if (value.Contains("ND"))
@@ -1473,7 +1490,7 @@ namespace LabAutomationElement
             string returnnum = testNum.ToString();
             string[] strNum = returnnum.Split(".");
             string oneNum = "1";
-            if (testNum.ToString().Length >= 4)
+            if (strNum[0].ToString().Length >= 4)
             {
                 for (int i = 0; i < strNum[0].ToString().Length - 1; i++)
                 {
@@ -1484,6 +1501,10 @@ namespace LabAutomationElement
                 decimal finalnum = Math.Round(testNum / onenum,2,MidpointRounding.ToEven);
                 string finalvalue = CalculateAccuracyCX(finalnum.ToString(),2);
                 returnnum = finalvalue + "×" + "10" + (strNum[0].ToString().Length - 1).ToString();
+            }
+            else
+            {
+                return "1.00×103";
             }
 
             return returnnum;
@@ -2160,11 +2181,11 @@ namespace LabAutomationElement
             {
                 C = Math.Round(C,1,MidpointRounding.ToEven);
             }
-            else if (C >= 100 && C < 1000)
+            else if (C >= 100 && C < 999.5M)
             {
                 C = Math.Round(C,0,MidpointRounding.ToEven);
             }
-            else if (C > 1000)
+            else if (C >= 999.5M)
             {
                 //C = Math.Round(C,0,MidpointRounding.ToEven);
                 string scientfiC = ScientificCounting(C);
@@ -2199,7 +2220,7 @@ namespace LabAutomationElement
         private string FireCalculateAccuracyC(string value)
         {
             decimal C = decimal.Parse(value);
-            if (C > 1000)
+            if (C >= 999.5M)
             {
                 //C = Math.Round(C / 1000,2,MidpointRounding.ToEven);
                 string scientfiC = ScientificCounting(C);
