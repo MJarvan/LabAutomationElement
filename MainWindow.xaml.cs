@@ -583,7 +583,7 @@ namespace LabAutomationElement
                             }
                             catch (Exception e)
                             {
-                                MessageBox.Show("第" + i + "行第" + k + "列的导入出现了问题。");
+                                MessageBox.Show("导入时第" + i + "行第" + k + "列的数据出现了异常，请检查。");
                             }
                             
                         }
@@ -1330,7 +1330,7 @@ namespace LabAutomationElement
                                     }
                                     catch (Exception e)
                                     {
-                                        MessageBox.Show("第" + i + "行样品编号为[" + sampleName + "]的数据出现异常，请检查。");
+                                        MessageBox.Show("导出时第" + (i + 1) + "行样品编号为[" + sampleName + "]的数据出现异常，请检查。");
                                     }
                                     //换颜色
                                     if (value.Contains("ND"))
